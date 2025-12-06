@@ -12,4 +12,5 @@ Este repositório documenta o processo de desenho de um sistema de detecção de
 
 ## Documentação
 
-1. [Contexto](docs/00-domain-context.md) - Contexto de domínio
+0. [Contexto](docs/00-domain-context.md) - Contexto de domínio
+1. [Requisitos](docs/01-requirements.md) - Requisitos funcionais e não-funcionais
