@@ -50,6 +50,57 @@ kubectl get nodes
 minikube dashboard
 ```
 
+## Instalar ArgoCD
+
+```bash
+# Criar namespace
+kubectl create namespace argocd
+
+# Instalar ArgoCD
+kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+
+# Aguardar pods ficarem ready
+kubectl wait --for=condition=available --timeout=300s \
+  deployment/argocd-server -n argocd
+
+# Verificar instalação
+kubectl get pods -n argocd
+```
+
+Você verá algo como:
+
+```bash
+NAME                                        READY   STATUS    RESTARTS   AGE
+argocd-application-controller-0             1/1     Running   0          2m36s
+argocd-applicationset-controller-xxx        1/1     Running   0          2m37s
+argocd-dex-server-xxx                       1/1     Running   0          2m36s
+argocd-notifications-controller-xxx         1/1     Running   0          2m36s
+argocd-redis-xxx                            1/1     Running   0          2m36s
+argocd-repo-server-xxx                      1/1     Running   0          2m36s
+argocd-server-xxxx                          1/1     Running   0          2m36s
+```
+
+Obter as credenciais:
+
+```bash
+# Obter senha inicial
+ARGOCD_PASSWORD=$(kubectl -n argocd get secret argocd-initial-admin-secret \
+  -o jsonpath="{.data.password}" | base64 -d)
+echo "ArgoCD Password: $ARGOCD_PASSWORD"
+
+# Será mostrado no terminal algo como 'ArgoCD Password: j3Awn291h######'
+
+# Port-forward para acessar UI
+kubectl port-forward svc/argocd-server -n argocd 8080:443 &
+```
+
+Acesse https://localhost:8080 e use as credenciais:
+
+```
+User: admin
+Pass: <valor de ARGOCD_PASSWORD>
+```
+
 ## Documentação
 
 0. [Contexto](docs/00-domain-context.md) - Contexto de domínio
