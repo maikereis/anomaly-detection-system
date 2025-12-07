@@ -101,6 +101,18 @@ User: admin
 Pass: <valor de ARGOCD_PASSWORD>
 ```
 
+## Estrutura
+
+```tree
+├── manifests/                         # Manifestos Kubernetes gerenciados pelo ArgoCD
+│   ├── base/                          # Recursos base reutilizados por todos os ambientes
+│   │   ├── kustomization.yaml         # Agrega todos os recursos do diretório base
+│   │   │
+│   │   ├── namespace/
+│   │   │   ├── kustomization.yaml     # Indexa o recurso de namespace para o Kustomize
+│   │   │   └── namespace.yaml         # Define o Namespace (isolamento lógico no cluster)
+```
+
 ## Documentação
 
 0. [Contexto](docs/00-domain-context.md) - Contexto de domínio
