@@ -30,6 +30,26 @@ chmod +x scripts/0-install-dependencies.sh
 ./scripts/0-install-dependencies.sh
 ```
 
+## Iniciar Minikube
+
+```bash
+# Iniciar cluster (4 CPUs, 8GB RAM)
+minikube start --cpus=4 --memory=8192 --driver=docker
+
+# Habilitar addons essenciais
+minikube addons enable ingress
+minikube addons enable metrics-server
+minikube addons enable dashboard
+
+# Verificar status
+minikube status
+kubectl cluster-info
+kubectl get nodes
+
+# Abrir dashboard
+minikube dashboard
+```
+
 ## Documentação
 
 0. [Contexto](docs/00-domain-context.md) - Contexto de domínio
