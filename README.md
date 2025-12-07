@@ -8,7 +8,27 @@ Sistema de detecção de anomalias
 
 Este repositório documenta o processo de desenho de um sistema de detecção de anomalias.
 
+## Pré-requisitos
 
+- **Docker**: 29.1.1, build: 0aedba5
+- **kubectl**: v1.34.2
+- **Kustomize**: v5.7.1
+- **Minikube**: v1.37.0, commit: 65318f4
+- **Helm**: v3.19.2, commit: 8766e71
+- **Git**: 2.43.0
+- **GitHub Personal Access Token** com permissões:
+  - `repo` (acesso a repositórios privados)
+  - `read:packages` (ler imagens do GHCR)
+
+
+## Instalando as dendencias
+
+Você pode instalar as dependências corretas usando o script:
+
+```bash
+chmod +x scripts/0-install-dependencies.sh
+./scripts/0-install-dependencies.sh
+```
 
 ## Documentação
 
