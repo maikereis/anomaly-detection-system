@@ -4,22 +4,23 @@ kind: Kustomization
 namespace: ml-dev
 
 resources:
-- ../../base
+  - ../../base
 
 patches:
-- path: namespace-patch.yaml
-  target:
-    kind: Namespace
-    name: ml-dev
+  - path: namespace-patch.yaml
+    target:
+      kind: Namespace
+      name: ml-dev
+  - path: postgres-mlflow-patch.yaml
 
 # Labels comuns para todos os recursos no minikube
 labels:
-- includeSelectors: true
-  includeTemplates: true
-  pairs:
-    environment: development
-    managed-by: argocd
-    platform: minikube
+  - includeSelectors: true
+    includeTemplates: true
+    pairs:
+      environment: development
+      managed-by: argocd
+      platform: minikube
 
 # Annotations comuns
 commonAnnotations:

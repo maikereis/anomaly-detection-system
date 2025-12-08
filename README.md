@@ -108,14 +108,23 @@ Pass: <valor de ARGOCD_PASSWORD>
 │   ├── base/                          # Recursos base reutilizados por todos os ambientes
 │   │   ├── kustomization.yaml         # Agrega todos os recursos do diretório base
 │   │   │
-│   │   └── namespace/
-│   │       ├── kustomization.yaml     # Indexa o recurso de namespace para o Kustomize
-│   │       └── namespace.yaml         # Define o Namespace (isolamento lógico no cluster)
+│   │   ├── namespace/
+│   │   │   ├── kustomization.yaml     # Indexa o recurso de namespace para o Kustomize
+│   │   │   └── namespace.yaml         # Define o Namespace (isolamento lógico no cluster)
+│   │   │
+│   │   └── postgres-mlflow/           # Postgres database para o Mlflow
+│   │       ├── configmap.yaml         # ConfigMap com configurações do Postgres
+│   │       ├── secret.yaml            # Credenciais e dados sensíveis do Postgres
+│   │       ├── kustomization.yaml     # Indexa os recursos do Postgres para o Kustomize
+│   │       ├── pvc.yaml               # PersistentVolumeClaim que solicita armazenamento persistente
+│   │       ├── service.yaml           # Serviço para expor o Postgres dentro do cluster
+│   │       └── statefulset.yaml       # StatefulSet que define o Pod com armazenamento persistente
 │   │
 │   ├── overlays/
 │   │   └── minikube/                  # Overlay para desenvolvimento local
 │   │       ├── kustomization.yaml     # Aplica patches e customizações específicas do ambiente Minikube
-│   │       └── namespace-patch.yaml   # Patch que sobrescreve/ajusta o namespace para uso no Minikube
+│   │       ├── namespace-patch.yaml   # Patch que sobrescreve/ajusta o namespace para uso no Minikube
+│   │       └── postgresql-mlflow-patch.yaml  # Path que sobrescreve configurações do postgres para uso no Minikube
 │   │
 │   └── argocd/                        # Configurações do ArgoCD
 │       ├── kustomization.yaml         # Agrega e organiza os manifestos de ArgoCD
