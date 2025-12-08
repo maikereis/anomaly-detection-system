@@ -128,12 +128,21 @@ Pass: <valor de ARGOCD_PASSWORD>
 │   │   │   ├── service.yaml           # Service interno para expor o MinIO dentro do cluster
 │   │   │   └── deployment.yaml        # Deployment do MinIO (container com credenciais montadas via Secret)
 │   │   │
-│   │   └── mlflow/                    # MLflow para o gerenciamento de experimentos e model registry
-│   │       ├── configmap.yaml         # Configurações não sensíveis do Mlflow
-│   │       ├── secret.yaml            # Credenciais e dados sensíveis do Mlflow
-│   │       ├── kustomization.yaml     # Agrega e indexa todos os recursos do Mlflow para o Kustomize
-│   │       ├── service.yaml           # Service interno para expor o Mlflow dentro do cluster
-│   │       └── deployment.yaml        # Deployment do Mlflow (container com credenciais montadas via Secret)
+│   │   ├── mlflow/                    # MLflow para o gerenciamento de experimentos e model registry
+│   │   │   ├── configmap.yaml         # Configurações não sensíveis do Mlflow
+│   │   │   ├── secret.yaml            # Credenciais e dados sensíveis do Mlflow
+│   │   │   ├── kustomization.yaml     # Agrega e indexa todos os recursos do Mlflow para o Kustomize
+│   │   │   ├── service.yaml           # Service interno para expor o Mlflow dentro do cluster
+│   │   │   └── deployment.yaml        # Deployment do Mlflow (container com credenciais montadas via Secret)
+│   │   │  
+│   │   └── istio/                              # Configuração de rede, segurança e roteamento usando Istio Service Mesh            
+│   │       ├── kustomization.yaml              # Agrega todos os manifests de Istio para o ambiente (Gateway, VirtualService, Policies)
+│   │       ├── gateway.yaml                    # Gateway de entrada (Ingress Gateway do Istio). Define portas/protocolos públicos e mapeia tráfego externo para dentro da malha
+│   │       ├── virtual-service.yaml            # Regras de roteamento L7 (HTTP) aplicadas após o Gateway. Controla qual serviço recebe qual rota
+│   │       ├── destination-rule.yaml           # Define regras para destinos internos. (subsets, load balancing, connection pool, mTLS entre serviços)
+│   │       ├── peer-authentication.yaml        # Define a política de autenticação mTLS entre pods dentro da malha
+│   │       ├── request-authentication.yaml     # Configura como o Istio valida JWTs de requisições externas
+│   │       └── authorization-policy.yaml       # Define políticas de autorização (RBAC do Istio). Após JWT autenticado, controla *o que pode ser acessado
 │   │
 │   ├── overlays/
 │   │   └── minikube/                                     # Overlay para desenvolvimento local
