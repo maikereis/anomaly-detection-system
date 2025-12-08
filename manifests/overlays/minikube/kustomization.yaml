@@ -1,0 +1,27 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: ml-dev
+
+resources:
+- ../../base
+
+patches:
+- path: namespace-patch.yaml
+  target:
+    kind: Namespace
+    name: ml-dev
+
+# Labels comuns para todos os recursos no minikube
+labels:
+- includeSelectors: true
+  includeTemplates: true
+  pairs:
+    environment: development
+    managed-by: argocd
+    platform: minikube
+
+# Annotations comuns
+commonAnnotations:
+  contact: maikerdralcantara@gmail.com
+  documentation: https://github.com/maikereis/anomaly-detection-system

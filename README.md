@@ -108,9 +108,21 @@ Pass: <valor de ARGOCD_PASSWORD>
 │   ├── base/                          # Recursos base reutilizados por todos os ambientes
 │   │   ├── kustomization.yaml         # Agrega todos os recursos do diretório base
 │   │   │
-│   │   ├── namespace/
-│   │   │   ├── kustomization.yaml     # Indexa o recurso de namespace para o Kustomize
-│   │   │   └── namespace.yaml         # Define o Namespace (isolamento lógico no cluster)
+│   │   └── namespace/
+│   │       ├── kustomization.yaml     # Indexa o recurso de namespace para o Kustomize
+│   │       └── namespace.yaml         # Define o Namespace (isolamento lógico no cluster)
+│   │
+│   ├── overlays/
+│   │   └── minikube/                  # Overlay para desenvolvimento local
+│   │       ├── kustomization.yaml     # Aplica patches e customizações específicas do ambiente Minikube
+│   │       └── namespace-patch.yaml   # Patch que sobrescreve/ajusta o namespace para uso no Minikube
+│   │
+│   └── argocd/                        # Configurações do ArgoCD
+│       ├── kustomization.yaml         # Agrega e organiza os manifestos de ArgoCD
+│       ├── project.yaml               # ArgoCD Project que define escopo e permissões dos apps
+│       ├── app-minikube.yaml          # Aplicação ArgoCD apontando para o overlay de Minikube
+│       └── app-aws.yaml               # Aplicação ArgoCD apontando para o overlay de produção na AWS
+
 ```
 
 ## Documentação
