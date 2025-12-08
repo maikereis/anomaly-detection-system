@@ -56,7 +56,7 @@ spec:
             - sh
             - -c
             - |
-              pip install --target=/packages psycopg2-binary
+              pip install --target=/packages cryptography==46.0.3 boto3==1.42.4 psycopg2-binary==2.9.11
           volumeMounts:
             - name: python-packages
               mountPath: /packages
@@ -78,9 +78,15 @@ spec:
           ports:
             - containerPort: 5000
               name: http
+          env:
+            - name: PYTHONPATH
+              value: "/packages"
           envFrom:
             - configMapRef:
                 name: mlflow-config
+          volumeMounts:
+            - name: python-packages
+              mountPath: /packages
 
           resources:
             requests:
