@@ -13,7 +13,7 @@ spec:
   # Source - onde está o código
   source:
     repoURL: git@github.com:maikereis/anomaly-detection-system.git
-    targetRevision: master
+    targetRevision: services
     path: manifests/overlays/minikube
 
   # Destination - onde deployar
