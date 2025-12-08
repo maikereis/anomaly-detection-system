@@ -112,19 +112,28 @@ Pass: <valor de ARGOCD_PASSWORD>
 │   │   │   ├── kustomization.yaml     # Indexa o recurso de namespace para o Kustomize
 │   │   │   └── namespace.yaml         # Define o Namespace (isolamento lógico no cluster)
 │   │   │
-│   │   └── postgres-mlflow/           # Postgres database para o Mlflow
-│   │       ├── configmap.yaml         # ConfigMap com configurações do Postgres
-│   │       ├── secret.yaml            # Credenciais e dados sensíveis do Postgres
-│   │       ├── kustomization.yaml     # Indexa os recursos do Postgres para o Kustomize
-│   │       ├── pvc.yaml               # PersistentVolumeClaim que solicita armazenamento persistente
-│   │       ├── service.yaml           # Serviço para expor o Postgres dentro do cluster
-│   │       └── statefulset.yaml       # StatefulSet que define o Pod com armazenamento persistente
+│   │   ├── postgres-mlflow/           # Postgres database para o Mlflow
+│   │   │   ├── configmap.yaml         # Configurações não sensíveis do Postgres
+│   │   │   ├── secret.yaml            # Credenciais e dados sensíveis do Postgres
+│   │   │   ├── kustomization.yaml     # Indexa os recursos do Postgres para o Kustomize
+│   │   │   ├── pvc.yaml               # PersistentVolumeClaim que solicita armazenamento persistente
+│   │   │   ├── service.yaml           # Serviço para expor o Postgres dentro do cluster
+│   │   │   └── statefulset.yaml       # StatefulSet que define o Pod com armazenamento persistente
+│   │   │
+│   │   └── minio-mlflow/              # MinIO utilizado como backend de artefatos do MLflow
+│   │       ├── configmap.yaml         # Configurações não sensíveis do MinIO
+│   │       ├── secret.yaml            # Credenciais e dados sensíveis do MinIO
+│   │       ├── kustomization.yaml     # Agrega e indexa todos os recursos do MinIO para o Kustomize
+│   │       ├── pvc.yaml               # PersistentVolumeClaim para armazenamento local dos buckets do MinIO
+│   │       ├── service.yaml           # Service interno para expor o MinIO dentro do cluster
+│   │       └── deployment.yaml        # Deployment do MinIO (container com credenciais montadas via Secret)
 │   │
 │   ├── overlays/
 │   │   └── minikube/                  # Overlay para desenvolvimento local
 │   │       ├── kustomization.yaml     # Aplica patches e customizações específicas do ambiente Minikube
 │   │       ├── namespace-patch.yaml   # Patch que sobrescreve/ajusta o namespace para uso no Minikube
-│   │       └── postgresql-mlflow-patch.yaml  # Path que sobrescreve configurações do postgres para uso no Minikube
+│   │       ├── postgresql-mlflow-patch.yaml  # Patch que sobrescreve configurações do Postgres para uso no Minikube
+│   │       └── minio-mlflow-patch.yaml  # Patch que sobrescreve configurações do MinIO para uso no Minikube
 │   │
 │   └── argocd/                        # Configurações do ArgoCD
 │       ├── kustomization.yaml         # Agrega e organiza os manifestos de ArgoCD
