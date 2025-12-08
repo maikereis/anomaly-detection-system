@@ -6,6 +6,7 @@ spec:
   selector:
     matchLabels:
       app: postgres-mlflow
+  serviceName: postgres-mlflow
   template:
     spec:
       containers:
