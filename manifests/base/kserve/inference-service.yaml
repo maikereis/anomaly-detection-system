@@ -1,0 +1,58 @@
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  name: anomaly-detector-predictor
+spec:
+  predictor:
+    model:
+      modelFormat:
+        name: mlflow
+      runtime: mlflow-runtime
+      storageUri: "models:/anomaly-detector/production"
+      
+      resources:
+        requests:
+          cpu: "500m"
+          memory: "1Gi"
+        limits:
+          cpu: "2000m"
+          memory: "4Gi"
+      
+      env:
+        - name: MLFLOW_TRACKING_URI
+          value: "http://mlflow-server.ml-dev.svc.cluster.local:5000"
+        - name: AWS_ACCESS_KEY_ID
+          valueFrom:
+            secretKeyRef:
+              name: mlflow-secret
+              key: AWS_ACCESS_KEY_ID
+        - name: AWS_SECRET_ACCESS_KEY
+          valueFrom:
+            secretKeyRef:
+              name: mlflow-secret
+              key: AWS_SECRET_ACCESS_KEY
+        - name: MLFLOW_S3_ENDPOINT_URL
+          value: "http://minio-mlflow.ml-dev.svc.cluster.local:9000"
+        - name: MLFLOW_S3_IGNORE_TLS
+          value: "true"
+        - name: AWS_DEFAULT_REGION
+          value: "us-east-1"
+      
+      # Model cache configuration
+      volumeMounts:
+        - name: model-cache
+          mountPath: /models-cache
+      
+    volumes:
+      - name: model-cache
+        emptyDir:
+          sizeLimit: 5Gi
+    
+    minReplicas: 3
+    maxReplicas: 50
+    
+    # Canary deployment configuration
+    canaryTrafficPercent: 0
+    
+    scaleTarget: 0  # Desabilitado, vai ser gerenciado pelo HPA
+    scaleMetric: concurrency

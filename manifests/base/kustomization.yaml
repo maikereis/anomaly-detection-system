@@ -7,3 +7,4 @@ resources:
   - minio-mlflow
   - mlflow
   - istio
+  - kserve

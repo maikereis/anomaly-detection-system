@@ -1,0 +1,52 @@
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: anomaly-detector-predictor-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: serving.kserve.io/v1beta1
+    kind: InferenceService
+    name: anomaly-detector-predictor
+  
+  minReplicas: 3
+  maxReplicas: 50
+  
+  metrics:
+    # CPU-based scaling
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    
+    # Memory-based scaling
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80
+  
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300  # 5 min para evitar flapping
+      policies:
+      - type: Percent
+        value: 50  # Scale down 50% dos pods por vez
+        periodSeconds: 60
+      - type: Pods
+        value: 2  # Ou no máximo 2 pods por vez
+        periodSeconds: 60
+      selectPolicy: Min  # Usa a política mais conservadora
+    
+    scaleUp:
+      stabilizationWindowSeconds: 60  # 1 min para scale up mais rápido
+      policies:
+      - type: Percent
+        value: 100  # Scale up até 100% dos pods atuais
+        periodSeconds: 30
+      - type: Pods
+        value: 5  # Ou no máximo 5 pods por vez
+        periodSeconds: 30
+      selectPolicy: Max  # Usa a política mais agressiva

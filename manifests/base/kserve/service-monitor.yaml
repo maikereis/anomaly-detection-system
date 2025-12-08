@@ -1,0 +1,25 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: anomaly-detector-predictor
+  labels:
+    app: anomaly-detector-predictor
+    component: ml-inference
+spec:
+  selector:
+    matchLabels:
+      serving.kserve.io/inferenceservice: anomaly-detector-predictor
+  
+  endpoints:
+    - port: metrics
+      interval: 15s
+      path: /metrics
+      scheme: http
+      
+      relabelings:
+        - sourceLabels: [__meta_kubernetes_pod_name]
+          targetLabel: pod
+        - sourceLabels: [__meta_kubernetes_namespace]
+          targetLabel: namespace
+        - sourceLabels: [__meta_kubernetes_pod_label_serving_kserve_io_inferenceservice]
+          targetLabel: inference_service
