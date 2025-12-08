@@ -6,6 +6,8 @@ resources:
 - service.yaml
 - deployment.yaml
 
-commonLabels:
-  app: mlflow-server
-  component: ml-tracking
+labels:
+- includeSelectors: true
+  pairs:
+    app: mlflow-server
+    component: ml-tracking
