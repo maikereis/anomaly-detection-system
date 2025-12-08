@@ -46,10 +46,20 @@ spec:
             - |
               mc alias set myminio http://minio-mlflow:9000 minio minio123;
               mc mb myminio/mlflow-artifacts || true
-
           env:
             - name: MC_HOST_myminio
               value: "http://minio:minio123@minio-mlflow:9000"
+
+        - name: install-psycopg2
+          image: ghcr.io/mlflow/mlflow:v3.6.0
+          command:
+            - sh
+            - -c
+            - |
+              pip install --target=/packages psycopg2-binary
+          volumeMounts:
+            - name: python-packages
+              mountPath: /packages
 
       containers:
         - name: mlflow
@@ -93,3 +103,7 @@ spec:
               port: 5000
             initialDelaySeconds: 10
             periodSeconds: 5
+
+      volumes:
+        - name: python-packages
+          emptyDir: {}
