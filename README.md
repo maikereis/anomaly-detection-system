@@ -120,13 +120,20 @@ Pass: <valor de ARGOCD_PASSWORD>
 │   │   │   ├── service.yaml           # Serviço para expor o Postgres dentro do cluster
 │   │   │   └── statefulset.yaml       # StatefulSet que define o Pod com armazenamento persistente
 │   │   │
-│   │   └── minio-mlflow/              # MinIO utilizado como backend de artefatos do MLflow
-│   │       ├── configmap.yaml         # Configurações não sensíveis do MinIO
-│   │       ├── secret.yaml            # Credenciais e dados sensíveis do MinIO
-│   │       ├── kustomization.yaml     # Agrega e indexa todos os recursos do MinIO para o Kustomize
-│   │       ├── pvc.yaml               # PersistentVolumeClaim para armazenamento local dos buckets do MinIO
-│   │       ├── service.yaml           # Service interno para expor o MinIO dentro do cluster
-│   │       └── deployment.yaml        # Deployment do MinIO (container com credenciais montadas via Secret)
+│   │   ├── minio-mlflow/              # MinIO utilizado como backend de artefatos do MLflow
+│   │   │   ├── configmap.yaml         # Configurações não sensíveis do MinIO
+│   │   │   ├── secret.yaml            # Credenciais e dados sensíveis do MinIO
+│   │   │   ├── kustomization.yaml     # Agrega e indexa todos os recursos do MinIO para o Kustomize
+│   │   │   ├── pvc.yaml               # PersistentVolumeClaim para armazenamento local dos buckets do MinIO
+│   │   │   ├── service.yaml           # Service interno para expor o MinIO dentro do cluster
+│   │   │   └── deployment.yaml        # Deployment do MinIO (container com credenciais montadas via Secret)
+│   │   │
+│   │   └── mlflow/                    # MLflow para o gerenciamento de experimentos e model registry
+│   │       ├── configmap.yaml         # Configurações não sensíveis do Mlflow
+│   │       ├── secret.yaml            # Credenciais e dados sensíveis do Mlflow
+│   │       ├── kustomization.yaml     # Agrega e indexa todos os recursos do Mlflow para o Kustomize
+│   │       ├── service.yaml           # Service interno para expor o Mlflow dentro do cluster
+│   │       └── deployment.yaml        # Deployment do Mlflow (container com credenciais montadas via Secret)
 │   │
 │   ├── overlays/
 │   │   └── minikube/                                     # Overlay para desenvolvimento local
