@@ -4,3 +4,4 @@ kind: Kustomization
 resources:
   - namespace
   - postgres-mlflow
+  - minio-mlflow
