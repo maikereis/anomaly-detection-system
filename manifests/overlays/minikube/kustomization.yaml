@@ -12,6 +12,7 @@ patches:
       kind: Namespace
       name: ml-dev
   - path: postgres-mlflow-patch.yaml
+  - path: minio-mlflow-patch.yaml
 
 # Labels comuns para todos os recursos no minikube
 labels:
