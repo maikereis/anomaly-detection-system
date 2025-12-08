@@ -129,11 +129,13 @@ Pass: <valor de ARGOCD_PASSWORD>
 │   │       └── deployment.yaml        # Deployment do MinIO (container com credenciais montadas via Secret)
 │   │
 │   ├── overlays/
-│   │   └── minikube/                  # Overlay para desenvolvimento local
-│   │       ├── kustomization.yaml     # Aplica patches e customizações específicas do ambiente Minikube
-│   │       ├── namespace-patch.yaml   # Patch que sobrescreve/ajusta o namespace para uso no Minikube
-│   │       ├── postgresql-mlflow-patch.yaml  # Patch que sobrescreve configurações do Postgres para uso no Minikube
-│   │       └── minio-mlflow-patch.yaml  # Patch que sobrescreve configurações do MinIO para uso no Minikube
+│   │   └── minikube/                                     # Overlay para desenvolvimento local
+│   │       ├── kustomization.yaml                        # Aplica patches e customizações específicas do ambiente Minikube
+│   │       ├── namespace-patch.yaml                      # Patch que sobrescreve/ajusta o namespace para uso no Minikube
+│   │       ├── postgresql-mlflow-statetulset-patch.yaml  # Patch que sobrescreve configurações statefulset do Postgres para uso no Minikube
+│   │       ├── postgresql-mlflow-pvc-patch.yaml          # Patch que sobrescreve configurações do pvc do Postgres para uso no Minikube
+│   │       ├── minio-mlflow-deployment.yaml              # Patch que sobrescreve configurações deployment do MinIO para uso no Minikube
+│   │       └── minio-mlflow-pvc-patch.yaml               # Patch que sobrescreve configurações do pvc MinIO para uso no Minikube
 │   │
 │   └── argocd/                        # Configurações do ArgoCD
 │       ├── kustomization.yaml         # Agrega e organiza os manifestos de ArgoCD

@@ -11,10 +11,23 @@ patches:
     target:
       kind: Namespace
       name: ml-dev
-  - path: postgres-mlflow-patch.yaml
-  - path: minio-mlflow-patch.yaml
+  - path: postgres-mlflow-statefulset-patch.yaml
+    target:
+      kind: StatefulSet
+      name: postgres-mlflow
+  - path: postgres-mlflow-pvc-patch.yaml
+    target:
+      kind: PersistentVolumeClaim
+      name: postgres-mlflow-data
+  - path: minio-mlflow-deployment-patch.yaml
+    target:
+      kind: Deployment
+      name: minio-mlflow
+  - path: minio-mlflow-pvc-patch.yaml
+    target:
+      kind: PersistentVolumeClaim
+      name: minio-mlflow-data
 
-# Labels comuns para todos os recursos no minikube
 labels:
   - includeSelectors: true
     includeTemplates: true
@@ -23,7 +36,6 @@ labels:
       managed-by: argocd
       platform: minikube
 
-# Annotations comuns
 commonAnnotations:
   contact: maikerdralcantara@gmail.com
   documentation: https://github.com/maikereis/anomaly-detection-system
