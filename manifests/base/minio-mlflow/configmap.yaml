@@ -3,6 +3,6 @@ kind: ConfigMap
 metadata:
   name: minio-mlflow-config
 data:
-  MINIO_BUCKET_NAME: "mlflow"
+  MINIO_BUCKET_NAME: "mlflow-artifacts"
   MINIO_API_PORT: "9000"
   MINIO_CONSOLE_PORT: "9001"
