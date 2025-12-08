@@ -1,0 +1,18 @@
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: anomaly-detector-predictor-shadow
+  namespace: ml-production
+spec:
+  host: anomaly-detector-predictor-predictor-shadow.ml-production.svc.cluster.local
+  
+  trafficPolicy:
+    connectionPool:
+      tcp:
+        maxConnections: 100
+      http:
+        http1MaxPendingRequests: 50
+        http2MaxRequests: 100
+    
+    loadBalancer:
+      simple: LEAST_REQUEST

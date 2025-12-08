@@ -1,0 +1,59 @@
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: anomaly-detector-predictor
+spec:
+  hosts:
+    - "*"
+  
+  gateways:
+    - anomaly-detector-gateway
+    - mesh
+  
+  http:
+    # Health check endpoint
+    - match:
+        - uri:
+            prefix: /v2/health
+      route:
+        - destination:
+            host: anomaly-detector-predictor-predictor-default
+            port:
+              number: 80
+      timeout: 5s
+    
+    # Prediction endpoints
+    # Para canary: KServe cria service separado com sufixo -canary
+    # Descomente o bloco abaixo quando tiver canary deployment
+    
+    # - match:
+    #     - uri:
+    #         prefix: /v2/models/anomaly-detector-predictor
+    #   route:
+    #     - destination:
+    #         host: anomaly-detector-predictor-predictor-default
+    #         port:
+    #           number: 80
+    #       weight: 80
+    #     - destination:
+    #         host: anomaly-detector-predictor-predictor-canary
+    #         port:
+    #           number: 80
+    #       weight: 20
+    
+    # Production only (100% tráfego)
+    - match:
+        - uri:
+            prefix: /v2/models/anomaly-detector-predictor
+      route:
+        - destination:
+            host: anomaly-detector-predictor-predictor-default
+            port:
+              number: 80
+      
+      retries:
+        attempts: 3
+        perTryTimeout: 2s
+        retryOn: 5xx,reset,connect-failure,refused-stream
+      
+      timeout: 10s
