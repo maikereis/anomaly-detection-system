@@ -5,3 +5,4 @@ resources:
   - namespace
   - postgres-mlflow
   - minio-mlflow
+  - mlflow

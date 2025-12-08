@@ -1,0 +1,95 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mlflow-server
+spec:
+  selector:
+    matchLabels:
+      app: mlflow-server
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: mlflow-server
+    spec:
+      initContainers:
+        # Espera o postgres-mlflow
+        - name: wait-for-postgres
+          image: busybox:1.37.0
+          command:
+            - sh
+            - -c
+            - |
+              until nc -z postgres-mlflow 5432; do
+                echo "Waiting for PortgreSQL..."
+                sleep 2
+              done
+
+        # Espera o minio-mlflow
+        - name: wait-for-minio
+          image: busybox:1.37.0
+          command:
+            - sh
+            - -c
+            - |
+              until nc -z minio-mlflow 9000; do
+                echo "Waiting for MinIO..."
+                sleep 2
+              done
+
+        # Cria o bucket
+        - name: create-bucket
+          image: minio/mc:RELEASE.2025-08-13T08-35-41Z
+          command:
+            - sh
+            - -c
+            - |
+              mc alias set myminio http://minio-mlflow:9000 minio minio123;
+              mc mb myminio/mlflow-artifacts || true
+
+          env:
+            - name: MC_HOST_myminio
+              value: "http://minio:minio123@minio-mlflow:9000"
+
+      containers:
+        - name: mlflow
+          image: ghcr.io/mlflow/mlflow:v3.6.0
+          command:
+            - mlflow
+            - server
+            - --host
+            - "0.0.0.0"
+            - --port
+            - "5000"
+            - --backend-store-uri
+            - $(MLFLOW_BACKEND_STORE_URI)
+            - --default-artifact-root
+            - $(MLFLOW_DEFAULT_ARTIFACT_ROOT)
+          ports:
+            - containerPort: 5000
+              name: http
+          envFrom:
+            - configMapRef:
+                name: mlflow-config
+
+          resources:
+            requests:
+              cpu: 200m
+              memory: 512Mi
+            limits:
+              cpu: 1000m
+              memory: 2Gi
+
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 5000
+            initialDelaySeconds: 30
+            periodSeconds: 10
+
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 5000
+            initialDelaySeconds: 10
+            periodSeconds: 5

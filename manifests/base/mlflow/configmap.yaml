@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mlflow-config
+data:
+  MLFLOW_S3_ENDPOINTS_URL: "http://minio-mlflow:9000"
+  AWS_ACCESS_KEY_ID: minio
+  AWS_SECRET_ACCESS_KEY: minio123
+  MLFLOW_BACKEND_STORE_URI: "postgresql://mlflow:mlflow123@postgres-mlflow:5432/mlflow"
+  MLFLOW_DEFAULT_ARTIFACT_ROOT: "s3://mlflow-artifacts"
