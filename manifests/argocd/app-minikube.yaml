@@ -12,15 +12,15 @@ spec:
   
   # Source - onde está o código
   source:
-    repoURL: https://github.com/maikereis/anomaly-detection-system.git
+    repoURL: git@github.com:maikereis/anomaly-detection-system.git
     targetRevision: master
     path: manifests/overlays/minikube
-  
+
   # Destination - onde deployar
   destination:
     server: https://kubernetes.default.svc
     namespace: ml-dev
-  
+
   # Sync policy - como deployar
   syncPolicy:
     # Automated sync - ArgoCD aplica mudanças automaticamente
@@ -28,14 +28,14 @@ spec:
       prune: true        # Remove recursos deletados do git
       selfHeal: true     # Reverte mudanças manuais no cluster
       allowEmpty: false  # Previne sync de diretórios vazios
-    
+
     # Sync options
     syncOptions:
       - CreateNamespace=true               # Cria namespace se não existir
       - PrunePropagationPolicy=foreground  # Deleta dependentes primeiro
       - PruneLast=true                     # Deleta recursos órfãos por último
       - RespectIgnoreDifferences=true
-    
+
     # Retry em caso de falha
     retry:
       limit: 5
@@ -43,7 +43,7 @@ spec:
         duration: 5s
         factor: 2
         maxDuration: 3m
-  
+
   # Ignore differences - evita sync loops
   ignoreDifferences:
     # Ignora replicas do HPA (gerenciado pelo HPA controller)
@@ -55,13 +55,13 @@ spec:
       kind: StatefulSet
       jsonPointers:
         - /spec/replicas
-    
+
     # Ignora status de recursos
     - group: "*"
       kind: "*"
       managedFieldsManagers:
         - kube-controller-manager
-  
+
   # Configurações de info
   info:
     - name: Environment

@@ -8,6 +8,8 @@ resources:
   - app-minikube.yaml
 
 # Labels para identificar recursos do ArgoCD
-commonLabels:
-  app.kubernetes.io/part-of: argocd
-  app.kubernetes.io/managed-by: kubectl
+labels:
+  - includeSelectors: true
+    pairs:
+      app.kubernetes.io/managed-by: kubectl
+      app.kubernetes.io/part-of: argocd

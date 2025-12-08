@@ -122,7 +122,66 @@ Pass: <valor de ARGOCD_PASSWORD>
 │       ├── project.yaml               # ArgoCD Project que define escopo e permissões dos apps
 │       ├── app-minikube.yaml          # Aplicação ArgoCD apontando para o overlay de Minikube
 │       └── app-aws.yaml               # Aplicação ArgoCD apontando para o overlay de produção na AWS
+```
 
+## Fazer um fork/clone desse respositório
+
+```
+git clone https://github.com/<YOUR_USERNAME>/<YOUR_REPO>.git
+cd <YOUR_REPO>
+```
+
+## Atualizar os arquivos de configuração
+
+Em `manifests/argocd/app-minikube.yaml`:
+```yaml
+source:
+  repoURL: git@github.com:<YOUR_USERNAME>/anomaly-detection-system.git
+  
+info:
+  - name: Contact
+    value: your-email@example.com
+```
+
+Em `manifests/overlays/minikube/kustomization.yaml`:
+```yaml
+commonAnnotations:
+  contact: your-email@example.com
+  documentation: https://github.com/<YOUR_USERNAME>/anomaly-detection-system
+```
+
+## Gerar chave
+
+```bash
+# Gere um par de chaves
+ssh-keygen -t ed25519 -C "argocd@minikube" -f ~/.ssh/argocd_rsa -N ""
+# Visualize a chave pública gerada
+cat ~/.ssh/argocd_rsa.pub
+```
+
+
+Em: https://github.com/<YOUR_USERNAME>/anomaly-detection-system/settings/keys
+
+Click em Add deploy key (https://github.com/<YOUR_USERNAME>/anomaly-detection-system/settings/keys/new) 
+
+```
+Title: <Escolha um nome>
+Key: <Cole a chave retornada no comando 'cat' anteriomente>
+```
+
+Agora podemos registrar a chave ssh como uma secret
+
+```
+# kubectl delete secret repo-anomaly-detection-system-ssh -n argocd  # caso precise
+
+kubectl create secret generic repo-anomaly-detection-system-ssh \
+  -n argocd \
+  --from-literal=type=git \
+  --from-literal=url=git@github.com:<YOUR_USERNAME>/anomaly-detection-system.git \
+  --from-file=sshPrivateKey=$HOME/.ssh/argocd_rsa
+
+kubectl label secret repo-anomaly-detection-system-ssh \
+  -n argocd argocd.argoproj.io/secret-type=repository
 ```
 
 ## Documentação
