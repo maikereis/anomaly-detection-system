@@ -81,6 +81,16 @@ spec:
           env:
             - name: PYTHONPATH
               value: "/packages"
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: mlflow-secret
+                  key: AWS_ACCESS_KEY_ID
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: mlflow-secret
+                  key: AWS_SECRET_ACCESS_KEY
           envFrom:
             - configMapRef:
                 name: mlflow-config
