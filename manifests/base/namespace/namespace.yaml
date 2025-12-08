@@ -5,3 +5,4 @@ metadata:
   labels:
     name: ml-dev
     environment: development
+    istio-injection: enabled
