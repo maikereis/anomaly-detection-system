@@ -72,6 +72,18 @@ spec:
       kind: Role
     - group: 'rbac.authorization.k8s.io'
       kind: RoleBinding
+    - group: 'networking.istio.io'
+      kind: Gateway
+    - group: 'networking.istio.io'
+      kind: VirtualService
+    - group: 'networking.istio.io'
+      kind: DestinationRule
+    - group: 'security.istio.io'
+      kind: PeerAuthentication
+    - group: 'security.istio.io'
+      kind: RequestAuthentication
+    - group: 'security.istio.io'
+      kind: AuthorizationPolicy
   
   # Sync windows - quando deploy é permitido
   syncWindows:
