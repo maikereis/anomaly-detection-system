@@ -4,7 +4,7 @@ metadata:
   name: anomaly-detector-predictor
 spec:
   hosts:
-    - "*"
+    - anomaly-detector-predictor-predictor-default
   
   gateways:
     - anomaly-detector-gateway
@@ -23,9 +23,7 @@ spec:
       timeout: 5s
     
     # Prediction endpoints
-    # Para canary: KServe cria service separado com sufixo -canary
-    # Descomente o bloco abaixo quando tiver canary deployment
-    
+    # TODO: Descomentar quando implementar canary deployment
     # - match:
     #     - uri:
     #         prefix: /v2/models/anomaly-detector-predictor
@@ -40,8 +38,13 @@ spec:
     #         port:
     #           number: 80
     #       weight: 20
+    #   retries:
+    #     attempts: 3
+    #     perTryTimeout: 2s
+    #     retryOn: 5xx,reset,connect-failure,refused-stream
+    #   timeout: 10s
     
-    # Production only (100% tráfego)
+    # Production only (100% traffic)
     - match:
         - uri:
             prefix: /v2/models/anomaly-detector-predictor
