@@ -11,7 +11,7 @@ spec:
         name: http
         protocol: HTTP
       hosts:
-        - "anomaly-detector.ml-production.svc.cluster.local"
+        - "anomaly-detector.ml-dev.svc.cluster.local"
         - "*"  # Para desenvolvimento/teste
     
     - port:
@@ -19,7 +19,7 @@ spec:
         name: https
         protocol: HTTPS
       hosts:
-        - "anomaly-detector.ml-production.svc.cluster.local"
+        - "anomaly-detector.ml-dev.svc.cluster.local"
       tls:
         mode: SIMPLE
         credentialName: anomaly-detector-tls  # Secret com certificado TLS

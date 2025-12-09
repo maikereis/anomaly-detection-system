@@ -2,9 +2,9 @@ apiVersion: networking.istio.io/v1beta1
 kind: DestinationRule
 metadata:
   name: anomaly-detector-predictor-shadow
-  namespace: ml-production
+  namespace: ml-dev
 spec:
-  host: anomaly-detector-predictor-predictor-shadow.ml-production.svc.cluster.local
+  host: anomaly-detector-predictor-predictor-shadow.ml-dev.svc.cluster.local
   
   trafficPolicy:
     connectionPool:
