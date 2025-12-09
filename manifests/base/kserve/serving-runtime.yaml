@@ -10,26 +10,7 @@ spec:
   
   containers:
     - name: kserve-container
-      image: ghcr.io/kserve/mlserver:1.5.0      
-      env:
-        - name: MLFLOW_TRACKING_URI
-          value: "http://mlflow-server.ml-production.svc.cluster.local:5000"
-        - name: AWS_ACCESS_KEY_ID
-          valueFrom:
-            secretKeyRef:
-              name: mlflow-secret
-              key: AWS_ACCESS_KEY_ID
-        - name: AWS_SECRET_ACCESS_KEY
-          valueFrom:
-            secretKeyRef:
-              name: mlflow-secret
-              key: AWS_SECRET_ACCESS_KEY
-        - name: MLFLOW_S3_ENDPOINT_URL
-          value: "http://minio-mlflow.ml-production.svc.cluster.local:9000"
-        - name: MLFLOW_S3_IGNORE_TLS
-          value: "true"
-        - name: AWS_DEFAULT_REGION
-          value: "us-east-1"
+      image: ghcr.io/kserve/mlserver:1.5.0
       
       resources:
         requests:
