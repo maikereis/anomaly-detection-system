@@ -1,0 +1,25 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mlflow-server
+spec:
+  selector:
+    matchLabels:
+      app: mlflow-server
+  template:
+    spec:
+      containers:
+        - name: mlflow
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          livenessProbe:
+            initialDelaySeconds: 45
+            periodSeconds: 15
+          readinessProbe:
+            initialDelaySeconds: 20
+            periodSeconds: 10

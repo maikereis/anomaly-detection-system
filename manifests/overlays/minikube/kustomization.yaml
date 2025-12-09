@@ -27,6 +27,18 @@ patches:
     target:
       kind: PersistentVolumeClaim
       name: minio-mlflow-data
+  - path: mlflow-deployment-patch.yaml
+    target:
+      kind: Deployment
+      name: mlflow-server
+  - path: inference-service-patch.yaml
+    target:
+      kind: InferenceService
+      name: anomaly-detector-predictor
+  - path: hpa-patch.yaml
+    target:
+      kind: HorizontalPodAutoscaler
+      name: anomaly-detector-predictor-hpa
 
 labels:
   - includeSelectors: true
