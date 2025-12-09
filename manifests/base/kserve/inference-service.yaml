@@ -2,6 +2,12 @@ apiVersion: serving.kserve.io/v1beta1
 kind: InferenceService
 metadata:
   name: anomaly-detector-predictor
+  annotations:
+    # Desabilita o autoscaler do KServe/Knative
+    autoscaling.knative.dev/class: "hpa.autoscaling.knative.dev"
+    autoscaling.knative.dev/metric: "cpu"
+    # Evita que o KServe controller modifique as replicas
+    serving.kserve.io/autoscalerClass: "hpa"
 spec:
   predictor:
     model:
@@ -9,7 +15,7 @@ spec:
         name: mlflow
       runtime: mlflow-runtime
       storageUri: "models:/anomaly-detector/production"
-      
+
       resources:
         requests:
           cpu: "500m"
@@ -17,7 +23,7 @@ spec:
         limits:
           cpu: "2000m"
           memory: "4Gi"
-      
+
       env:
         - name: MLFLOW_TRACKING_URI
           value: "http://mlflow-server.ml-dev.svc.cluster.local:5000"
@@ -37,22 +43,15 @@ spec:
           value: "true"
         - name: AWS_DEFAULT_REGION
           value: "us-east-1"
-      
-      # Model cache configuration
+
       volumeMounts:
         - name: model-cache
           mountPath: /models-cache
-      
+
     volumes:
       - name: model-cache
         emptyDir:
           sizeLimit: 5Gi
-    
-    minReplicas: 3
-    maxReplicas: 50
-    
+
     # Canary deployment configuration
     canaryTrafficPercent: 0
-    
-    scaleTarget: 0  # Desabilitado, vai ser gerenciado pelo HPA
-    scaleMetric: concurrency
