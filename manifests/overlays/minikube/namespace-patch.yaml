@@ -7,6 +7,8 @@ metadata:
     pod-security.kubernetes.io/enforce: baseline
     pod-security.kubernetes.io/audit: restricted
     pod-security.kubernetes.io/warn: restricted
+    # Enable Istio sidecar injection
+    istio-injection: enabled
   annotations:
     # Limites de recursos para desenvolvimento
     scheduler.alpha.kubernetes.io/node-selector: "kubernetes.io/os=linux"

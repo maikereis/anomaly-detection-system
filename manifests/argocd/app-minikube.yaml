@@ -35,6 +35,7 @@ spec:
       - PrunePropagationPolicy=foreground  # Deleta dependentes primeiro
       - PruneLast=true                     # Deleta recursos órfãos por último
       - RespectIgnoreDifferences=true
+      
 
     # Retry em caso de falha
     retry:
