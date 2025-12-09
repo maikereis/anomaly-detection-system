@@ -4,4 +4,4 @@ metadata:
   name: default
 spec:
   mtls:
-    mode: STRICT  # Força mTLS em todo tráfego interno
+    mode: PERMISSIVE # Mantém o Istio ativo, mas permite comunicação plain text com pods sem sidecar (MinIO, Postgres). Pods com sidecar ainda usam mTLS entre si.
