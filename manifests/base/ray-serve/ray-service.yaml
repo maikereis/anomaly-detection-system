@@ -13,7 +13,8 @@ spec:
       - name: anomaly_detector
         import_path: serve_app:app
         runtime_env:
-          working_dir: "/app"
+          env_vars:
+            PYTHONPATH: "/app:$PYTHONPATH"
           pip:
             - mlflow==3.6.0
             - boto3==1.42.4
@@ -22,11 +23,11 @@ spec:
         
         deployments:
           - name: AnomalyDetector
-            num_replicas: 2  # Ray Serve replicas (actors)
+            num_replicas: 2
             max_concurrent_queries: 10
             ray_actor_options:
-              num_cpus: 0.5
-              memory: 536870912  # 512 MiB in bytes
+              num_cpus: 0.3
+              memory: 268435456
 
   # Ray Cluster configuration
   rayClusterConfig:
