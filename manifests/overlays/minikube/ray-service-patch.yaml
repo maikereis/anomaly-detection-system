@@ -5,7 +5,7 @@ metadata:
 spec:
   serviceUnhealthySecondThreshold: 1200
   deploymentUnhealthySecondThreshold: 600
-  
+
   serveConfigV2: |
     applications:
       - name: anomaly_detector
@@ -29,24 +29,24 @@ spec:
   rayClusterConfig:
     headGroupSpec:
       rayStartParams:
-        dashboard-host: '0.0.0.0'
-        dashboard-port: '8265'
-        metrics-export-port: '8080'
-        num-cpus: '0'
-        object-store-memory: '104857600'  # 100MB explícito para object store
-      
+        dashboard-host: "0.0.0.0"
+        dashboard-port: "8265"
+        metrics-export-port: "8080"
+        num-cpus: "0"
+        object-store-memory: "104857600"
+
       template:
         spec:
           containers:
             - name: ray-head
               image: anyscale/ray:2.52.0-slim-py312
-              
+
               volumeMounts:
                 - name: serve-app
                   mountPath: /app
                 - name: ray-logs
                   mountPath: /tmp/ray
-              
+
               resources:
                 requests:
                   cpu: "500m"
@@ -54,32 +54,54 @@ spec:
                 limits:
                   cpu: "1"
                   memory: "2Gi"
-          
+
+              livenessProbe:
+                exec:
+                  command:
+                    - bash
+                    - -c
+                    - curl -f -s http://localhost:52365/api/local_raylet_healthz | grep success
+                initialDelaySeconds: 30
+                periodSeconds: 10
+                timeoutSeconds: 5
+                failureThreshold: 3
+
+              readinessProbe:
+                exec:
+                  command:
+                    - bash
+                    - -c
+                    - curl -f -s http://localhost:52365/api/local_raylet_healthz | grep success && curl -f -s http://localhost:8000/-/healthz | grep success
+                initialDelaySeconds: 30
+                periodSeconds: 10
+                timeoutSeconds: 5
+                failureThreshold: 3
+
           volumes:
             - name: serve-app
               configMap:
                 name: ray-serve-app
             - name: ray-logs
               emptyDir: {}
-    
+
     workerGroupSpecs:
       - replicas: 1
         minReplicas: 1
         maxReplicas: 2
         groupName: worker-group
-        
+
         template:
           spec:
             containers:
               - name: ray-worker
                 image: anyscale/ray:2.52.0-slim-py312
-                
+
                 volumeMounts:
                   - name: serve-app
                     mountPath: /app
                   - name: ray-logs
                     mountPath: /tmp/ray
-                
+
                 resources:
                   requests:
                     cpu: "500m"
@@ -87,7 +109,29 @@ spec:
                   limits:
                     cpu: "1"
                     memory: "2Gi"
-            
+
+                livenessProbe:
+                  exec:
+                    command:
+                      - bash
+                      - -c
+                      - curl -f -s http://localhost:52365/api/local_raylet_healthz | grep success
+                  initialDelaySeconds: 30
+                  periodSeconds: 10
+                  timeoutSeconds: 5
+                  failureThreshold: 3
+
+                readinessProbe:
+                  exec:
+                    command:
+                      - bash
+                      - -c
+                      - curl -f -s http://localhost:52365/api/local_raylet_healthz | grep success
+                  initialDelaySeconds: 10
+                  periodSeconds: 10
+                  timeoutSeconds: 5
+                  failureThreshold: 3
+
             volumes:
               - name: serve-app
                 configMap:
