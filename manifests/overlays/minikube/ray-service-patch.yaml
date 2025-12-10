@@ -40,6 +40,13 @@ spec:
           containers:
             - name: ray-head
               image: anyscale/ray:2.52.0-slim-py312
+              
+              volumeMounts:
+                - name: serve-app
+                  mountPath: /app
+                - name: ray-logs
+                  mountPath: /tmp/ray
+              
               resources:
                 requests:
                   cpu: "500m"
@@ -47,6 +54,13 @@ spec:
                 limits:
                   cpu: "1"
                   memory: "2Gi"
+          
+          volumes:
+            - name: serve-app
+              configMap:
+                name: ray-serve-app
+            - name: ray-logs
+              emptyDir: {}
     
     workerGroupSpecs:
       - replicas: 1
@@ -59,10 +73,24 @@ spec:
             containers:
               - name: ray-worker
                 image: anyscale/ray:2.52.0-slim-py312
+                
+                volumeMounts:
+                  - name: serve-app
+                    mountPath: /app
+                  - name: ray-logs
+                    mountPath: /tmp/ray
+                
                 resources:
                   requests:
                     cpu: "500m"
-                    memory: "1Gi"    # Aumentado de 512Mi
+                    memory: "1Gi"
                   limits:
                     cpu: "1"
-                    memory: "2Gi"    # Aumentado de 768Mi
+                    memory: "2Gi"
+            
+            volumes:
+              - name: serve-app
+                configMap:
+                  name: ray-serve-app
+              - name: ray-logs
+                emptyDir: {}
