@@ -3,7 +3,7 @@ kind: Deployment
 metadata:
   name: ray-serve
 spec:
-  replicas: 1 # Minikube: apenas 1 replica
+  replicas: 1
   selector:
     matchLabels:
       app: ray-serve
@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
         - name: ray-serve
-          image: rayproject/ray:2.9.0
+          image: anyscale/ray:2.52.0-slim-py312
 
           command:
             - /bin/bash
@@ -23,19 +23,19 @@ spec:
               set -ex
 
               # Aguarda MLflow estar disponível
-              until curl -f http://mlflow-server:5000/health; do
+              until curl -sf http://mlflow-server:5000/health > /dev/null; do
                 echo "Waiting for MLflow..."
                 sleep 5
               done
 
               # Instala dependências Python
-              pip install --quiet mlflow==2.16.2 boto3==1.35.36
+              pip install --quiet mlflow==3.6.0 boto3==1.42.4
 
               # Inicia Ray head node
               ray start --head --port=6379 --dashboard-host=0.0.0.0 --dashboard-port=8265
 
               # Deploy da aplicação Ray Serve
-              serve run /app/serve_app.py
+              cd /app && serve run serve_app:app
 
           ports:
             - containerPort: 8000
@@ -43,14 +43,12 @@ spec:
             - containerPort: 8265
               name: dashboard
 
-          # Variáveis de ambiente
           envFrom:
             - configMapRef:
                 name: ray-serve-config
             - secretRef:
                 name: ray-serve-secret
 
-          # Monta a aplicação
           volumeMounts:
             - name: serve-app
               mountPath: /app
