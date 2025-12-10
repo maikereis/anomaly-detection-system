@@ -32,7 +32,7 @@ spec:
               pip install --quiet mlflow==3.6.0 boto3==1.42.4
 
               # Inicia Ray head node
-              ray start --head --port=6379 --dashboard-host=0.0.0.0 --dashboard-port=8265
+              ray start --head --port=6379 --metrics-export-port=8080 --dashboard-host=0.0.0.0 --dashboard-port=8265
 
               # Deploy da aplicação Ray Serve
               cd /app && serve run serve_app:app
