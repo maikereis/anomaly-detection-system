@@ -7,7 +7,7 @@ spec:
     matchLabels:
       app: ray-serve
   endpoints:
-    - port: serve
+    - port: metrics
       path: /metrics
       interval: 15s
 
