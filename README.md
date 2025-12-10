@@ -20,8 +20,7 @@ Este repositório documenta o processo de desenho de um sistema de detecção de
   - `repo` (acesso a repositórios privados)
   - `read:packages` (ler imagens do GHCR)
 
-
-## Instalando as dendencias
+## Instalando as dependências
 
 Você pode instalar as dependências corretas usando o script:
 
@@ -30,11 +29,31 @@ chmod +x scripts/0-install-dependencies.sh
 ./scripts/0-install-dependencies.sh
 ```
 
-## Iniciar Minikube
+## Setup Automatizado
+
+Para setup completo do ambiente, use o script automatizado:
 
 ```bash
-# Iniciar cluster (4 CPUs, 8GB RAM)
-minikube start --cpus=4 --memory=8192 --driver=docker
+chmod +x scripts/1-config-cluster.sh
+./scripts/1-config-cluster.sh
+```
+
+Este script irá:
+- Iniciar o Minikube
+- Instalar Istio
+- Instalar Cert-Manager
+- Instalar Prometheus Stack
+- Instalar ArgoCD
+
+---
+
+## Setup Manual (Passo a Passo)
+
+### 1. Iniciar Minikube
+
+```bash
+# Iniciar cluster (6 CPUs, 12GB RAM)
+minikube start --cpus=6 --memory=12288 --driver=docker
 
 # Habilitar addons essenciais
 minikube addons enable ingress
@@ -50,7 +69,74 @@ kubectl get nodes
 minikube dashboard
 ```
 
-## Instalar ArgoCD
+### 2. Instalar Istio
+
+```bash
+# Adiciona Istio repo
+helm repo add istio https://istio-release.storage.googleapis.com/charts
+helm repo update
+
+# Instala base
+helm install istio-base istio/base -n istio-system --create-namespace --version 1.28.0
+
+# Instala istiod
+helm install istiod istio/istiod -n istio-system --version 1.28.0 --wait
+
+# Instala o ingress gateway
+helm install istio-ingress istio/gateway -n istio-system --version 1.28.0 --wait
+
+# Verifica instalação
+kubectl get pods -n istio-system
+```
+
+### 3. Instalar Cert-Manager
+
+```bash
+# Instala cert-manager (requerido para certificados TLS)
+kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.19.1/cert-manager.yaml
+
+# Aguardar pods ficarem ready
+kubectl wait --for=condition=available --timeout=300s deployment/cert-manager -n cert-manager
+kubectl wait --for=condition=available --timeout=300s deployment/cert-manager-webhook -n cert-manager
+kubectl wait --for=condition=available --timeout=300s deployment/cert-manager-cainjector -n cert-manager
+
+# Verificar instalação
+kubectl get pods -n cert-manager
+```
+
+### 4. Instalar Prometheus Operator
+
+```bash
+# Adicionar repositório Helm
+helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+helm repo update
+
+# Instalar kube-prometheus-stack
+helm upgrade --install prometheus-operator prometheus-community/kube-prometheus-stack \
+  --namespace monitoring \
+  --create-namespace \
+  --set prometheus.enabled=true \
+  --set grafana.enabled=true \
+  --set alertmanager.enabled=false \
+  --set prometheusOperator.enabled=true \
+  --set prometheus.prometheusSpec.serviceMonitorSelectorNilUsesHelmValues=false \
+  --set prometheus.prometheusSpec.podMonitorSelectorNilUsesHelmValues=false \
+  --wait \
+  --timeout 5m
+
+# Obter senha do Grafana
+kubectl --namespace monitoring get secrets prometheus-operator-grafana -o jsonpath="{.data.admin-password}" | base64 -d ; echo
+
+# Verificar instalação
+kubectl get pods -n monitoring
+kubectl get crd | grep monitoring.coreos.com
+
+# Port-forward para acessar Grafana
+export POD_NAME=$(kubectl --namespace monitoring get pod -l "app.kubernetes.io/name=grafana,app.kubernetes.io/instance=prometheus-operator" -oname)
+kubectl --namespace monitoring port-forward $POD_NAME 3000
+```
+
+### 5. Instalar ArgoCD
 
 ```bash
 # Criar namespace
@@ -60,8 +146,7 @@ kubectl create namespace argocd
 kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
 
 # Aguardar pods ficarem ready
-kubectl wait --for=condition=available --timeout=300s \
-  deployment/argocd-server -n argocd
+kubectl wait --for=condition=available --timeout=300s deployment/argocd-server -n argocd
 
 # Verificar instalação
 kubectl get pods -n argocd
@@ -80,7 +165,7 @@ argocd-repo-server-xxx                      1/1     Running   0          2m36s
 argocd-server-xxxx                          1/1     Running   0          2m36s
 ```
 
-Obter as credenciais:
+#### Obter as credenciais
 
 ```bash
 # Obter senha inicial
@@ -101,75 +186,17 @@ User: admin
 Pass: <valor de ARGOCD_PASSWORD>
 ```
 
-## Estrutura
+### 6. Fazer um fork/clone desse repositório
 
-```tree
-├── manifests/                         # Manifestos Kubernetes gerenciados pelo ArgoCD
-│   ├── base/                          # Recursos base reutilizados por todos os ambientes
-│   │   ├── kustomization.yaml         # Agrega todos os recursos do diretório base
-│   │   │
-│   │   ├── namespace/
-│   │   │   ├── kustomization.yaml     # Indexa o recurso de namespace para o Kustomize
-│   │   │   └── namespace.yaml         # Define o Namespace (isolamento lógico no cluster)
-│   │   │
-│   │   ├── postgres-mlflow/           # Postgres database para o Mlflow
-│   │   │   ├── configmap.yaml         # Configurações não sensíveis do Postgres
-│   │   │   ├── secret.yaml            # Credenciais e dados sensíveis do Postgres
-│   │   │   ├── kustomization.yaml     # Indexa os recursos do Postgres para o Kustomize
-│   │   │   ├── pvc.yaml               # PersistentVolumeClaim que solicita armazenamento persistente
-│   │   │   ├── service.yaml           # Serviço para expor o Postgres dentro do cluster
-│   │   │   └── statefulset.yaml       # StatefulSet que define o Pod com armazenamento persistente
-│   │   │
-│   │   ├── minio-mlflow/              # MinIO utilizado como backend de artefatos do MLflow
-│   │   │   ├── configmap.yaml         # Configurações não sensíveis do MinIO
-│   │   │   ├── secret.yaml            # Credenciais e dados sensíveis do MinIO
-│   │   │   ├── kustomization.yaml     # Agrega e indexa todos os recursos do MinIO para o Kustomize
-│   │   │   ├── pvc.yaml               # PersistentVolumeClaim para armazenamento local dos buckets do MinIO
-│   │   │   ├── service.yaml           # Service interno para expor o MinIO dentro do cluster
-│   │   │   └── deployment.yaml        # Deployment do MinIO (container com credenciais montadas via Secret)
-│   │   │
-│   │   ├── mlflow/                    # MLflow para o gerenciamento de experimentos e model registry
-│   │   │   ├── configmap.yaml         # Configurações não sensíveis do Mlflow
-│   │   │   ├── secret.yaml            # Credenciais e dados sensíveis do Mlflow
-│   │   │   ├── kustomization.yaml     # Agrega e indexa todos os recursos do Mlflow para o Kustomize
-│   │   │   ├── service.yaml           # Service interno para expor o Mlflow dentro do cluster
-│   │   │   └── deployment.yaml        # Deployment do Mlflow (container com credenciais montadas via Secret)
-│   │   │  
-│   │   └── istio/                              # Configuração de rede, segurança e roteamento usando Istio Service Mesh            
-│   │       ├── kustomization.yaml              # Agrega todos os manifests de Istio para o ambiente (Gateway, VirtualService, Policies)
-│   │       ├── gateway.yaml                    # Gateway de entrada (Ingress Gateway do Istio). Define portas/protocolos públicos e mapeia tráfego externo para dentro da malha
-│   │       ├── virtual-service.yaml            # Regras de roteamento L7 (HTTP) aplicadas após o Gateway. Controla qual serviço recebe qual rota
-│   │       ├── destination-rule.yaml           # Define regras para destinos internos. (subsets, load balancing, connection pool, mTLS entre serviços)
-│   │       ├── peer-authentication.yaml        # Define a política de autenticação mTLS entre pods dentro da malha
-│   │       ├── request-authentication.yaml     # Configura como o Istio valida JWTs de requisições externas
-│   │       └── authorization-policy.yaml       # Define políticas de autorização (RBAC do Istio). Após JWT autenticado, controla *o que pode ser acessado
-│   │
-│   ├── overlays/
-│   │   └── minikube/                                     # Overlay para desenvolvimento local
-│   │       ├── kustomization.yaml                        # Aplica patches e customizações específicas do ambiente Minikube
-│   │       ├── namespace-patch.yaml                      # Patch que sobrescreve/ajusta o namespace para uso no Minikube
-│   │       ├── postgresql-mlflow-statetulset-patch.yaml  # Patch que sobrescreve configurações statefulset do Postgres para uso no Minikube
-│   │       ├── postgresql-mlflow-pvc-patch.yaml          # Patch que sobrescreve configurações do pvc do Postgres para uso no Minikube
-│   │       ├── minio-mlflow-deployment.yaml              # Patch que sobrescreve configurações deployment do MinIO para uso no Minikube
-│   │       └── minio-mlflow-pvc-patch.yaml               # Patch que sobrescreve configurações do pvc MinIO para uso no Minikube
-│   │
-│   └── argocd/                        # Configurações do ArgoCD
-│       ├── kustomization.yaml         # Agrega e organiza os manifestos de ArgoCD
-│       ├── project.yaml               # ArgoCD Project que define escopo e permissões dos apps
-│       ├── app-minikube.yaml          # Aplicação ArgoCD apontando para o overlay de Minikube
-│       └── app-aws.yaml               # Aplicação ArgoCD apontando para o overlay de produção na AWS
-```
-
-## Fazer um fork/clone desse respositório
-
-```
+```bash
 git clone https://github.com/<YOUR_USERNAME>/<YOUR_REPO>.git
 cd <YOUR_REPO>
 ```
 
-## Atualizar os arquivos de configuração
+### 7. Atualizar os arquivos de configuração
 
 Em `manifests/argocd/app-minikube.yaml`:
+
 ```yaml
 source:
   repoURL: git@github.com:<YOUR_USERNAME>/anomaly-detection-system.git
@@ -180,44 +207,375 @@ info:
 ```
 
 Em `manifests/overlays/minikube/kustomization.yaml`:
+
 ```yaml
 commonAnnotations:
   contact: your-email@example.com
   documentation: https://github.com/<YOUR_USERNAME>/anomaly-detection-system
 ```
 
-## Gerar chave
+### 8. Gerar chave SSH
 
 ```bash
 # Gere um par de chaves
 ssh-keygen -t ed25519 -C "argocd@minikube" -f ~/.ssh/argocd_rsa -N ""
+
 # Visualize a chave pública gerada
 cat ~/.ssh/argocd_rsa.pub
 ```
 
+#### Adicionar Deploy Key no GitHub
 
-Em: https://github.com/<YOUR_USERNAME>/anomaly-detection-system/settings/keys
+Acesse: `https://github.com/<YOUR_USERNAME>/anomaly-detection-system/settings/keys`
 
-Click em Add deploy key (https://github.com/<YOUR_USERNAME>/anomaly-detection-system/settings/keys/new) 
+Clique em **Add deploy key** (`https://github.com/<YOUR_USERNAME>/anomaly-detection-system/settings/keys/new`)
 
 ```
 Title: <Escolha um nome>
-Key: <Cole a chave retornada no comando 'cat' anteriomente>
+Key: <Cole a chave retornada no comando 'cat' anteriormente>
 ```
 
-Agora podemos registrar a chave ssh como uma secret
+#### Registrar a chave SSH como Secret no Kubernetes
 
-```
-# kubectl delete secret repo-anomaly-detection-system-ssh -n argocd  # caso precise
+```bash
+# Remover secret existente (se necessário)
+# kubectl delete secret repo-anomaly-detection-system-ssh -n argocd
 
+# Criar secret com a chave SSH
 kubectl create secret generic repo-anomaly-detection-system-ssh \
   -n argocd \
   --from-literal=type=git \
   --from-literal=url=git@github.com:<YOUR_USERNAME>/anomaly-detection-system.git \
   --from-file=sshPrivateKey=$HOME/.ssh/argocd_rsa
 
+# Adicionar label para o ArgoCD reconhecer
 kubectl label secret repo-anomaly-detection-system-ssh \
   -n argocd argocd.argoproj.io/secret-type=repository
+```
+
+### 9. Configurar ArgoCD Application
+
+```bash
+# Aplica ArgoCD manifestos (cria Project e Application)
+kubectl apply -k manifests/argocd/
+
+# Verifica se a aplicação foi criada
+kubectl get application -n argocd
+
+# Aguardar alguns segundos e verificar status
+kubectl get application ml-system-minikube -n argocd -o yaml
+```
+
+### 10. Deploy da aplicação via ArgoCD
+
+#### Opção A: Sync via UI do ArgoCD
+
+1. Acesse https://localhost:8080
+2. Login com `admin` e a senha obtida anteriormente
+3. Clique na aplicação `ml-system-minikube`
+4. Clique em **SYNC** → **SYNCHRONIZE**
+
+#### Opção B: Sync via CLI
+
+```bash
+# Instalar ArgoCD CLI (se necessário)
+# Linux
+curl -sSL -o argocd https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
+chmod +x argocd
+sudo mv argocd /usr/local/bin/
+
+# Login no ArgoCD
+argocd login localhost:8080 --username admin --password $ARGOCD_PASSWORD --insecure
+
+# Sincronizar aplicação
+argocd app sync ml-system-minikube
+
+# Verificar status
+argocd app get ml-system-minikube
+```
+
+### 11. Verificar recursos implantados
+
+```bash
+# Verificar namespace
+kubectl get namespace ml-dev
+
+# Verificar todos os recursos
+kubectl get all -n ml-dev
+
+# Verificar recursos específicos
+kubectl get pods -n ml-dev
+kubectl get svc -n ml-dev
+kubectl get pvc -n ml-dev
+kubectl get statefulsets -n ml-dev
+kubectl get deployments -n ml-dev
+
+# Verificar recursos do Istio
+kubectl get gateway -n ml-dev
+kubectl get virtualservice -n ml-dev
+kubectl get destinationrule -n ml-dev
+
+# Verificar HPA
+kubectl get hpa -n ml-dev
+```
+
+### 12. Acessar os serviços
+
+#### MLflow UI
+
+```bash
+# Port-forward para MLflow
+kubectl port-forward -n ml-dev svc/mlflow-server 5000:5000
+
+# Acessar em: http://localhost:5000
+```
+
+#### MinIO Console
+
+```bash
+# Port-forward para MinIO
+kubectl port-forward -n ml-dev svc/minio-mlflow 9001:9001
+
+# Acessar em: http://localhost:9001
+# Credenciais estão no secret: kubectl get secret minio-mlflow-secret -n ml-dev -o yaml
+```
+
+#### Ray Serve API
+
+```bash
+# Port-forward para Ray Serve
+kubectl port-forward -n ml-dev svc/ray-serve 8000:8000
+
+# Acessar API em: http://localhost:8000
+```
+
+#### Ray Dashboard
+
+```bash
+# Port-forward para Ray Dashboard
+kubectl port-forward -n ml-dev svc/ray-serve 8265:8265
+
+# Acessar em: http://localhost:8265
+# Dashboard mostra:
+# - Status do Ray Serve
+# - Métricas de recursos (CPU, memória)
+# - Deployments ativos
+# - Logs dos workers
+```
+
+#### Grafana (já configurado anteriormente)
+
+```bash
+# Port-forward para Grafana (se não estiver rodando)
+export POD_NAME=$(kubectl --namespace monitoring get pod -l "app.kubernetes.io/name=grafana,app.kubernetes.io/instance=prometheus-operator" -oname)
+kubectl --namespace monitoring port-forward $POD_NAME 3000
+
+# Acessar em: http://localhost:3000
+# User: admin
+# Password: obtida anteriormente com o comando na seção 4
+```
+
+### 13. Testar Ray Serve Deployment
+
+```bash
+# Testar endpoint de health
+curl http://localhost:8000/
+
+# Fazer uma predição
+curl -X POST http://localhost:8000/predict/series-001 \
+  -H "Content-Type: application/json" \
+  -d '{
+    "timestamp": "2024-12-10T10:00:00Z",
+    "value": 42.5
+  }'
+
+# Resposta esperada:
+# {
+#   "anomaly": false,
+#   "model_version": "fallback",
+#   "timestamp": "2024-12-10T10:00:00Z",
+#   "value": 42.5,
+#   "model_source": "fallback",
+#   "processed_at": "2024-12-10T10:00:05.123456"
+# }
+```
+
+### 14. Workflow GitOps - Fazendo alterações
+
+#### Fluxo de atualização via Git
+
+```bash
+# 1. Fazer alterações nos manifestos
+# Exemplo: alterar réplicas no deployment do MLflow
+vim manifests/base/mlflow/deployment.yaml
+
+# 2. Commitar e fazer push
+git add .
+git commit -m "feat: increase mlflow replicas to 2"
+git push origin main
+
+# 3. ArgoCD detecta mudanças automaticamente (polling padrão: 3min)
+# Ou forçar sincronização imediata:
+argocd app sync ml-system-minikube
+
+# 4. Verificar aplicação das mudanças
+kubectl get pods -n ml-dev -w
+```
+
+#### Fazendo rollback
+
+```bash
+# Via ArgoCD CLI
+argocd app rollback ml-system-minikube
+
+# Ou via UI: Application → History and Rollback → selecionar revisão anterior
+```
+
+#### Testando mudanças localmente antes do commit
+
+```bash
+# Aplicar manifestos diretamente (sem GitOps)
+kubectl apply -k manifests/overlays/minikube/
+
+# Verificar mudanças
+kubectl get all -n ml-dev
+
+# Se estiver ok, fazer commit
+# Se não, reverter: kubectl delete -k manifests/overlays/minikube/
+```
+
+## Estrutura
+
+```
+.
+├── manifests/                                    # Manifestos Kubernetes gerenciados pelo ArgoCD
+│   ├── base/                                     # Recursos base reutilizados por todos os ambientes
+│   │   ├── kustomization.yaml                    # Agrega todos os recursos do diretório base
+│   │   │
+│   │   ├── namespace/
+│   │   │   ├── kustomization.yaml                # Indexa o recurso de namespace para o Kustomize
+│   │   │   └── namespace.yaml                    # Define o Namespace (isolamento lógico no cluster)
+│   │   │
+│   │   ├── postgres-mlflow/                      # Postgres database para o Mlflow
+│   │   │   ├── configmap.yaml                    # Configurações não sensíveis do Postgres
+│   │   │   ├── secret.yaml                       # Credenciais e dados sensíveis do Postgres
+│   │   │   ├── kustomization.yaml                # Indexa os recursos do Postgres para o Kustomize
+│   │   │   ├── pvc.yaml                          # PersistentVolumeClaim que solicita armazenamento persistente
+│   │   │   ├── service.yaml                      # Serviço para expor o Postgres dentro do cluster
+│   │   │   └── statefulset.yaml                  # StatefulSet que define o Pod com armazenamento persistente
+│   │   │
+│   │   ├── minio-mlflow/                         # MinIO utilizado como backend de artefatos do MLflow
+│   │   │   ├── configmap.yaml                    # Configurações não sensíveis do MinIO
+│   │   │   ├── secret.yaml                       # Credenciais e dados sensíveis do MinIO
+│   │   │   ├── kustomization.yaml                # Agrega e indexa todos os recursos do MinIO para o Kustomize
+│   │   │   ├── pvc.yaml                          # PersistentVolumeClaim para armazenamento local dos buckets do MinIO
+│   │   │   ├── service.yaml                      # Service interno para expor o MinIO dentro do cluster
+│   │   │   └── deployment.yaml                   # Deployment do MinIO (container com credenciais montadas via Secret)
+│   │   │
+│   │   ├── mlflow/                               # MLflow para o gerenciamento de experimentos e model registry
+│   │   │   ├── configmap.yaml                    # Configurações não sensíveis do Mlflow
+│   │   │   ├── secret.yaml                       # Credenciais e dados sensíveis do Mlflow
+│   │   │   ├── kustomization.yaml                # Agrega e indexa todos os recursos do Mlflow para o Kustomize
+│   │   │   ├── service.yaml                      # Service interno para expor o Mlflow dentro do cluster
+│   │   │   └── deployment.yaml                   # Deployment do Mlflow (container com credenciais montadas via Secret)
+│   │   │
+│   │   ├── ray-serve/                            # Ray Serve para serving de modelos
+│   │   │   ├── kustomization.yaml                # Agrega todos os manifestos do Ray Serve
+│   │   │   ├── deployment.yaml                   # Deployment do Ray Serve (head node + serve)
+│   │   │   ├── service.yaml                      # Services para API (8000) e dashboard (8265)
+│   │   │   ├── hpa.yaml                          # HorizontalPodAutoscaler para escalonamento
+│   │   │   ├── configmap.yaml                    # Configurações do Ray Serve
+│   │   │   ├── secret.yaml                       # Credenciais (MinIO/S3)
+│   │   │   └── app-configmap.yaml                # Código Python da aplicação Ray Serve
+│   │   │
+│   │   └── istio/                                # Configuração de rede, segurança e roteamento usando Istio Service Mesh
+│   │       ├── kustomization.yaml                # Agrega todos os manifests de Istio para o ambiente
+│   │       ├── gateway.yaml                      # Gateway de entrada (Ingress Gateway do Istio)
+│   │       ├── virtual-service.yaml              # Regras de roteamento L7 (HTTP) aplicadas após o Gateway
+│   │       ├── destination-rule.yaml             # Define regras para destinos internos
+│   │       ├── peer-authentication.yaml          # Define a política de autenticação mTLS entre pods
+│   │       ├── request-authentication.yaml       # Configura como o Istio valida JWTs de requisições externas
+│   │       └── authorization-policy.yaml         # Define políticas de autorização (RBAC do Istio)
+│   │
+│   ├── overlays/
+│   │   └── minikube/                             # Overlay para desenvolvimento local
+│   │       ├── kustomization.yaml                # Aplica patches e customizações específicas do ambiente Minikube
+│   │       ├── namespace-patch.yaml              # Patch que sobrescreve/ajusta o namespace para uso no Minikube
+│   │       ├── postgresql-mlflow-statefulset-patch.yaml  # Patch do StatefulSet do Postgres
+│   │       ├── postgresql-mlflow-pvc-patch.yaml  # Patch do PVC do Postgres
+│   │       ├── minio-mlflow-deployment-patch.yaml # Patch do Deployment do MinIO
+│   │       ├── minio-mlflow-pvc-patch.yaml       # Patch do PVC do MinIO
+│   │       ├── ray-serve-deployment-patch.yaml   # Patch do Deployment do Ray Serve (recursos reduzidos)
+│   │       ├── ray-serve-hpa-patch.yaml          # Patch do HPA (limites ajustados)
+│   │       └── ray-serve-app-configmap-patch.yaml # Patch da aplicação (versão otimizada)
+│   │
+│   └── argocd/                                   # Configurações do ArgoCD
+│       ├── kustomization.yaml                    # Agrega e organiza os manifestos de ArgoCD
+│       ├── project.yaml                          # ArgoCD Project que define escopo e permissões dos apps
+│       ├── app-minikube.yaml                     # Aplicação ArgoCD apontando para o overlay de Minikube
+│       └── app-aws.yaml                          # Aplicação ArgoCD apontando para o overlay de produção na AWS
+```
+
+## 15. Monitoramento e Observabilidade
+
+### Métricas do Prometheus
+
+```bash
+# Port-forward Prometheus
+kubectl port-forward -n monitoring svc/prometheus-operator-kube-prom-prometheus 9090:9090
+
+# Acessar em: http://localhost:9090
+# Queries úteis:
+# - up{namespace="ml-dev"}
+# - ray_serve_deployment_request_counter
+# - ray_serve_deployment_processing_latency_ms
+# - container_cpu_usage_seconds_total{namespace="ml-dev"}
+```
+
+### Ray Dashboard Metrics
+
+O Ray Dashboard (port 8265) fornece:
+- **Overview**: Status geral do Ray Serve
+- **Serve**: Deployments ativos, réplicas, latência, throughput
+- **Cluster**: Recursos (CPU, memória, disco)
+- **Logs**: Logs centralizados dos workers
+
+### Logs centralizados
+
+```bash
+# Logs do MLflow
+kubectl logs -n ml-dev -l app=mlflow-server -f
+
+# Logs do Ray Serve
+kubectl logs -n ml-dev -l app=ray-serve -f
+
+# Logs do PostgreSQL
+kubectl logs -n ml-dev -l app=postgresql-mlflow -f
+
+# Logs do MinIO
+kubectl logs -n ml-dev -l app=minio-mlflow -f
+
+# Todos os logs do namespace
+kubectl logs -n ml-dev --all-containers=true -f
+```
+
+### Dashboards Grafana
+
+1. Acesse Grafana em http://localhost:3000
+2. Dashboards pré-configurados:
+   - **Kubernetes / Compute Resources / Namespace (Pods)** - métricas por namespace
+   - **Kubernetes / Compute Resources / Workload** - métricas por deployment/statefulset
+   - **Prometheus / Stats** - métricas do próprio Prometheus
+
+### Service Mesh (Istio) Observability
+
+```bash
+# Kiali (se instalado)
+istioctl dashboard kiali
+
+# Métricas de request latency
+kubectl exec -n istio-system deployment/istiod -- \
+  pilot-agent request GET stats/prometheus | grep istio_request_duration_milliseconds
 ```
 
 ## Documentação
@@ -227,3 +585,7 @@ kubectl label secret repo-anomaly-detection-system-ssh \
 2. [Estimativa de Capacidade](docs/02-capacity-estimation.md) - Cálculo de escala
 3. [Desenho da API](docs/03-api-design.md) - Contratos de API
 4. [Desenho de alto nível](docs/04-high-level-design.md) - Desenho de alto nível
+
+## Troubleshooting
+
+[Me ajude!](TROUBLESHOOTING.md)
