@@ -1,0 +1,7 @@
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: ray-serve-hpa
+spec:
+  minReplicas: 1  # Minikube: começa com 1
+  maxReplicas: 3  # Minikube: máximo 3

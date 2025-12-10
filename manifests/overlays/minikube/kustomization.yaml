@@ -7,10 +7,13 @@ resources:
   - ../../base
 
 patches:
+  # Namespace
   - path: namespace-patch.yaml
     target:
       kind: Namespace
       name: ml-dev
+  
+  # PostgreSQL
   - path: postgres-mlflow-statefulset-patch.yaml
     target:
       kind: StatefulSet
@@ -19,6 +22,8 @@ patches:
     target:
       kind: PersistentVolumeClaim
       name: postgres-mlflow-data
+  
+  # MinIO
   - path: minio-mlflow-deployment-patch.yaml
     target:
       kind: Deployment
@@ -27,6 +32,20 @@ patches:
     target:
       kind: PersistentVolumeClaim
       name: minio-mlflow-data
+  
+  # Ray Serve
+  - path: ray-serve-deployment-patch.yaml
+    target:
+      kind: Deployment
+      name: ray-serve
+  - path: ray-serve-hpa-patch.yaml
+    target:
+      kind: HorizontalPodAutoscaler
+      name: ray-serve-hpa
+  - path: ray-serve-app-configmap-patch.yaml
+    target:
+      kind: ConfigMap
+      name: ray-serve-app
 
 labels:
   - includeSelectors: true
