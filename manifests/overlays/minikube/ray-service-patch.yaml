@@ -33,6 +33,7 @@ spec:
         dashboard-port: '8265'
         metrics-export-port: '8080'
         num-cpus: '0'
+        object-store-memory: '104857600'  # 100MB explícito para object store
       
       template:
         spec:
@@ -41,11 +42,11 @@ spec:
               image: anyscale/ray:2.52.0-slim-py312
               resources:
                 requests:
-                  cpu: "300m"
-                  memory: "768Mi"
-                limits:
                   cpu: "500m"
                   memory: "1Gi"
+                limits:
+                  cpu: "1"
+                  memory: "2Gi"
     
     workerGroupSpecs:
       - replicas: 1
@@ -60,8 +61,8 @@ spec:
                 image: anyscale/ray:2.52.0-slim-py312
                 resources:
                   requests:
-                    cpu: "300m"
-                    memory: "512Mi"
-                  limits:
                     cpu: "500m"
-                    memory: "768Mi"
+                    memory: "1Gi"    # Aumentado de 512Mi
+                  limits:
+                    cpu: "1"
+                    memory: "2Gi"    # Aumentado de 768Mi
