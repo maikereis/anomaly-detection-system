@@ -6,9 +6,13 @@ data:
   # MLflow
   MLFLOW_TRACKING_URI: "http://mlflow-server:5000"
   
-  # Ray Serve básico
+  # Ray Serve
   RAY_SERVE_HTTP_HOST: "0.0.0.0"
   RAY_SERVE_HTTP_PORT: "8000"
+  
+  # Prometheus/Grafana endpoints for Ray Dashboard
+  RAY_PROMETHEUS_HOST: "http://prometheus-operator-kube-p-prometheus.monitoring.svc.cluster.local:9090"
+  RAY_GRAFANA_HOST: "http://prometheus-operator-grafana.monitoring.svc.cluster.local:80"
   
   # Logging
   RAY_LOGGING_LEVEL: "INFO"
