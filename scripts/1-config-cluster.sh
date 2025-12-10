@@ -598,6 +598,10 @@ echo "✓ Grafana: http://localhost:3000"
 kubectl port-forward -n monitoring svc/prometheus-operator-kube-prom-prometheus 9090:9090 > /dev/null 2>&1 &
 echo "✓ Prometheus: http://localhost:9090"
 
+# Ray-Serve (8265 -> 8265)
+kubectl port-forward -n ml-dev svc/ray-serve 8265:8265 > /dev/null 2>&1 &
+echo "✓ Ray-serve: http://localhost:8265"
+
 echo ""
 echo "Port-forwards running in background."
 echo "To stop: pkill -f 'kubectl.*port-forward'"
