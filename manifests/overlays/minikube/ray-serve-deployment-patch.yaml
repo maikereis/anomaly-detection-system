@@ -4,6 +4,7 @@ metadata:
   name: ray-serve
 spec:
   selector:
+    replicas: 1
     matchLabels:
       app: ray-serve
   template:

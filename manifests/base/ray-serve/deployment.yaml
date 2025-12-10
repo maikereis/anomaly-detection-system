@@ -63,7 +63,7 @@ spec:
 
           readinessProbe:
             httpGet:
-              path: /-/healthz
+              path: /
               port: 8000
             initialDelaySeconds: 90
             periodSeconds: 10
