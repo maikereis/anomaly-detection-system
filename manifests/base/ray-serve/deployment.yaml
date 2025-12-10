@@ -16,7 +16,45 @@ spec:
         - name: ray-serve
           image: rayproject/ray:2.9.0
 
-          # Resource limits
+          command:
+            - /bin/bash
+            - -c
+            - |
+              set -ex
+
+              # Aguarda MLflow estar disponível
+              until curl -f http://mlflow-server:5000/health; do
+                echo "Waiting for MLflow..."
+                sleep 5
+              done
+
+              # Instala dependências Python
+              pip install --quiet mlflow==2.16.2 boto3==1.35.36
+
+              # Inicia Ray head node
+              ray start --head --port=6379 --dashboard-host=0.0.0.0 --dashboard-port=8265
+
+              # Deploy da aplicação Ray Serve
+              serve run /app/serve_app.py
+
+          ports:
+            - containerPort: 8000
+              name: serve
+            - containerPort: 8265
+              name: dashboard
+
+          # Variáveis de ambiente
+          envFrom:
+            - configMapRef:
+                name: ray-serve-config
+            - secretRef:
+                name: ray-serve-secret
+
+          # Monta a aplicação
+          volumeMounts:
+            - name: serve-app
+              mountPath: /app
+
           resources:
             requests:
               cpu: 250m
@@ -42,3 +80,8 @@ spec:
             periodSeconds: 10
             timeoutSeconds: 3
             failureThreshold: 3
+
+      volumes:
+        - name: serve-app
+          configMap:
+            name: ray-serve-app
