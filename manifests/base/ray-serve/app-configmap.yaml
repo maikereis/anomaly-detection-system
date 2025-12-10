@@ -43,7 +43,6 @@ data:
     
     
     @serve.deployment(
-        num_replicas=2,
         autoscaling_config={
             "min_replicas": 2,
             "max_replicas": 10,
