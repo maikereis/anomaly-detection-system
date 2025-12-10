@@ -3,7 +3,6 @@ kind: RayService
 metadata:
   name: anomaly-detector
 spec:
-  # Minikube: timeouts mais relaxados
   serviceUnhealthySecondThreshold: 1200
   deploymentUnhealthySecondThreshold: 600
   
@@ -21,11 +20,11 @@ spec:
         
         deployments:
           - name: AnomalyDetector
-            num_replicas: 1  # Minikube: começa com 1
+            num_replicas: 1
             max_concurrent_queries: 10
             ray_actor_options:
               num_cpus: 0.3
-              memory: 268435456  # 256 MiB
+              memory: 268435456
 
   rayClusterConfig:
     headGroupSpec:
@@ -39,6 +38,7 @@ spec:
         spec:
           containers:
             - name: ray-head
+              image: anyscale/ray:2.52.0-slim-py312
               resources:
                 requests:
                   cpu: "300m"
@@ -50,13 +50,14 @@ spec:
     workerGroupSpecs:
       - replicas: 1
         minReplicas: 1
-        maxReplicas: 2  # Minikube: máximo 2 workers
+        maxReplicas: 2
         groupName: worker-group
         
         template:
           spec:
             containers:
               - name: ray-worker
+                image: anyscale/ray:2.52.0-slim-py312
                 resources:
                   requests:
                     cpu: "300m"
