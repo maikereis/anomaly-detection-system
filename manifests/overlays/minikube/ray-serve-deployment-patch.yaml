@@ -19,12 +19,6 @@ spec:
               cpu: 2000m
               memory: 2Gi
 
-          livenessProbe:
-            initialDelaySeconds: 120
-            periodSeconds: 20
-            timeoutSeconds: 10
-            failureThreshold: 5
-
           readinessProbe:
             initialDelaySeconds: 90
             periodSeconds: 15

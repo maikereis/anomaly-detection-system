@@ -61,15 +61,6 @@ spec:
               cpu: 2000m
               memory: 2Gi
 
-          livenessProbe:
-            httpGet:
-              path: /
-              port: 8000
-            initialDelaySeconds: 90
-            periodSeconds: 15
-            timeoutSeconds: 5
-            failureThreshold: 3
-
           readinessProbe:
             httpGet:
               path: /
