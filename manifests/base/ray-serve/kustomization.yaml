@@ -8,6 +8,7 @@ resources:
   - secret.yaml
   - app-configmap.yaml
   - ray-service.yaml
+  - service.yaml
   - servicemonitor.yaml
 
 labels:

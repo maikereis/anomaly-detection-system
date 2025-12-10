@@ -71,7 +71,7 @@ spec:
                   command:
                     - bash
                     - -c
-                    - curl -f -s http://localhost:52365/api/local_raylet_healthz | grep success && curl -f -s http://localhost:8000/-/healthz | grep success
+                    - curl -f -s http://localhost:52365/api/local_raylet_healthz | grep success
                 initialDelaySeconds: 30
                 periodSeconds: 10
                 timeoutSeconds: 5

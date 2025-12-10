@@ -86,6 +86,8 @@ spec:
                   mountPath: /app
                 - name: ray-logs
                   mountPath: /tmp/ray
+                - name: shared-mem
+                  mountPath: /dev/shm
 
               resources:
                 requests:
@@ -101,7 +103,7 @@ spec:
                     - bash
                     - -c
                     - curl -f -s http://localhost:52365/api/local_raylet_healthz | grep success
-                initialDelaySeconds: 30
+                initialDelaySeconds: 60
                 periodSeconds: 10
                 timeoutSeconds: 5
                 failureThreshold: 3
@@ -111,7 +113,7 @@ spec:
                   command:
                     - bash
                     - -c
-                    - curl -f -s http://localhost:52365/api/local_raylet_healthz | grep success && curl -f -s http://localhost:8000/-/healthz | grep success
+                    - curl -f -s http://localhost:52365/api/local_raylet_healthz | grep success
                 initialDelaySeconds: 30
                 periodSeconds: 10
                 timeoutSeconds: 5
@@ -128,6 +130,10 @@ spec:
                 name: ray-serve-app
             - name: ray-logs
               emptyDir: {}
+            - name: shared-mem
+              emptyDir:
+                medium: Memory
+                sizeLimit: 2Gi
 
     # ===== RAY WORKER NODES =====
     # Workers scale horizontally
@@ -139,7 +145,6 @@ spec:
 
         rayStartParams:
           num-cpus: "1"
-          block: "true"
 
         template:
           metadata:
@@ -179,6 +184,8 @@ spec:
                     mountPath: /app
                   - name: ray-logs
                     mountPath: /tmp/ray
+                  - name: shared-mem
+                    mountPath: /dev/shm
 
                 resources:
                   requests:
@@ -221,3 +228,7 @@ spec:
                   name: ray-serve-app
               - name: ray-logs
                 emptyDir: {}
+              - name: shared-mem
+                emptyDir:
+                  medium: Memory
+                  sizeLimit: 1Gi

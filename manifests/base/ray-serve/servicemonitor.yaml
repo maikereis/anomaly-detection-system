@@ -1,17 +1,17 @@
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
-  name: ray-serve-metrics
+  name: ray-metrics
   namespace: ml-dev
 spec:
   selector:
     matchLabels:
-      app: ray-serve
+      app: ray-cluster
+      component: metrics
   endpoints:
-    - port: metrics
-      path: /metrics
-      interval: 15s
-
+    - port: dashboard
+      path: /api/prometheus_metrics
+      interval: 30s
       relabelings:
         - sourceLabels: [__meta_kubernetes_pod_name]
           targetLabel: pod
@@ -19,3 +19,18 @@ spec:
           targetLabel: namespace
         - sourceLabels: [__meta_kubernetes_pod_label_component]
           targetLabel: component
+        - replacement: "dashboard"
+          targetLabel: metrics_source
+
+    - port: metrics
+      path: /metrics
+      interval: 30s
+      relabelings:
+        - sourceLabels: [__meta_kubernetes_pod_name]
+          targetLabel: pod
+        - sourceLabels: [__meta_kubernetes_namespace]
+          targetLabel: namespace
+        - sourceLabels: [__meta_kubernetes_pod_label_component]
+          targetLabel: component
+        - replacement: "raylet"
+          targetLabel: metrics_source
