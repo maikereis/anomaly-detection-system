@@ -42,9 +42,9 @@ Este script irá:
 - Iniciar o Minikube
 - Instalar Istio
 - Instalar Cert-Manager
+- Instalar KubeRay Operator
 - Instalar Prometheus Stack
 - Instalar ArgoCD
-
 ---
 
 ## Setup Manual (Passo a Passo)
@@ -104,12 +104,48 @@ kubectl wait --for=condition=available --timeout=300s deployment/cert-manager-ca
 kubectl get pods -n cert-manager
 ```
 
-### 4. Instalar Prometheus Operator
+### 4. Instalar KubeRay Operator
+
+```bash
+# Adicionar repositório KubeRay
+helm repo add kuberay https://ray-project.github.io/kuberay-helm/
+helm repo update
+
+# Instalar KubeRay operator
+helm install kuberay-operator kuberay/kuberay-operator \
+  --namespace ray-system \
+  --create-namespace \
+  --version v1.5.1 \
+  --wait
+
+# Aguardar pods ficarem ready
+kubectl wait --for=condition=available --timeout=300s deployment/kuberay-operator -n ray-system
+
+# Verifica CRDs
+kubectl get crd | grep ray.io
+```
+
+Você verá algo como:
+
+```bash
+rayclusters.ray.io                               2024-12-09T20:37:20Z
+rayjobs.ray.io                                   2024-12-09T20:37:20Z
+rayservices.ray.io                               2024-12-09T20:37:21Z
+```
+
+Verifica o operator:
+
+```bash
+kubectl get pods -n ray-system
+```
+
+### 5. Instalar Prometheus Operator
 
 ```bash
 # Adicionar repositório Helm
 helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
 helm repo update
+
 
 # Instalar kube-prometheus-stack
 helm upgrade --install prometheus-operator prometheus-community/kube-prometheus-stack \
@@ -136,7 +172,7 @@ export POD_NAME=$(kubectl --namespace monitoring get pod -l "app.kubernetes.io/n
 kubectl --namespace monitoring port-forward $POD_NAME 3000
 ```
 
-### 5. Instalar ArgoCD
+### 6. Instalar ArgoCD
 
 ```bash
 # Criar namespace
@@ -186,14 +222,14 @@ User: admin
 Pass: <valor de ARGOCD_PASSWORD>
 ```
 
-### 6. Fazer um fork/clone desse repositório
+### 7. Fazer um fork/clone desse repositório
 
 ```bash
 git clone https://github.com/<YOUR_USERNAME>/<YOUR_REPO>.git
 cd <YOUR_REPO>
 ```
 
-### 7. Atualizar os arquivos de configuração
+### 8. Atualizar os arquivos de configuração
 
 Em `manifests/argocd/app-minikube.yaml`:
 
@@ -214,7 +250,7 @@ commonAnnotations:
   documentation: https://github.com/<YOUR_USERNAME>/anomaly-detection-system
 ```
 
-### 8. Gerar chave SSH
+### 9. Gerar chave SSH
 
 ```bash
 # Gere um par de chaves
@@ -253,7 +289,7 @@ kubectl label secret repo-anomaly-detection-system-ssh \
   -n argocd argocd.argoproj.io/secret-type=repository
 ```
 
-### 9. Configurar ArgoCD Application
+### 10. Configurar ArgoCD Application
 
 ```bash
 # Aplica ArgoCD manifestos (cria Project e Application)
@@ -266,7 +302,7 @@ kubectl get application -n argocd
 kubectl get application ml-system-minikube -n argocd -o yaml
 ```
 
-### 10. Deploy da aplicação via ArgoCD
+### 11. Deploy da aplicação via ArgoCD
 
 #### Opção A: Sync via UI do ArgoCD
 
@@ -294,7 +330,7 @@ argocd app sync ml-system-minikube
 argocd app get ml-system-minikube
 ```
 
-### 11. Verificar recursos implantados
+### 12. Verificar recursos implantados
 
 ```bash
 # Verificar namespace
@@ -310,22 +346,33 @@ kubectl get pvc -n ml-dev
 kubectl get statefulsets -n ml-dev
 kubectl get deployments -n ml-dev
 
+# Verificar Ray Cluster
+kubectl get raycluster -n ml-dev
+kubectl describe raycluster -n ml-dev
+
+# Verificar Ray Services (quando implantados)
+kubectl get rayservice -n ml-dev
+kubectl describe rayservice -n ml-dev
+
 # Verificar recursos do Istio
 kubectl get gateway -n ml-dev
 kubectl get virtualservice -n ml-dev
 kubectl get destinationrule -n ml-dev
 
+# Verificar ServiceMonitor (Prometheus)
+kubectl get servicemonitor -n ml-dev
+
 # Verificar HPA
 kubectl get hpa -n ml-dev
 ```
 
-### 12. Acessar os serviços
+### 13. Acessar os serviços
 
 #### MLflow UI
 
 ```bash
 # Port-forward para MLflow
-kubectl port-forward -n ml-dev svc/mlflow-server 5000:5000
+kubectl port-forward -n ml-dev svc/mlflow 5000:5000
 
 # Acessar em: http://localhost:5000
 ```
@@ -340,26 +387,18 @@ kubectl port-forward -n ml-dev svc/minio-mlflow 9001:9001
 # Credenciais estão no secret: kubectl get secret minio-mlflow-secret -n ml-dev -o yaml
 ```
 
-#### Ray Serve API
-
-```bash
-# Port-forward para Ray Serve
-kubectl port-forward -n ml-dev svc/ray-serve 8000:8000
-
-# Acessar API em: http://localhost:8000
-```
-
 #### Ray Dashboard
 
 ```bash
-# Port-forward para Ray Dashboard
+# Port-forward para Ray Dashboard (quando cluster estiver rodando)
 kubectl port-forward -n ml-dev svc/ray-serve 8265:8265
 
 # Acessar em: http://localhost:8265
 # Dashboard mostra:
-# - Status do Ray Serve
-# - Métricas de recursos (CPU, memória)
-# - Deployments ativos
+# - Status do cluster Ray
+# - Métricas de recursos (CPU, memória, GPU)
+# - Jobs em execução
+# - Deployments do Ray Serve
 # - Logs dos workers
 ```
 
@@ -372,35 +411,37 @@ kubectl --namespace monitoring port-forward $POD_NAME 3000
 
 # Acessar em: http://localhost:3000
 # User: admin
-# Password: obtida anteriormente com o comando na seção 4
+# Password: obtida anteriormente com o comando na seção 5
 ```
 
-### 13. Testar Ray Serve Deployment
+### 14. Testar Ray Serve Deployment
 
 ```bash
-# Testar endpoint de health
-curl http://localhost:8000/
+# Obter o endpoint do Ray Serve
+kubectl get svc -n ml-dev | grep ray
 
-# Fazer uma predição
-curl -X POST http://localhost:8000/predict/series-001 \
+# Para ambiente local (Minikube), configurar ingress
+# Obter IP do Minikube
+minikube ip
+
+# Adicionar entrada no /etc/hosts (substitua <MINIKUBE_IP> pelo IP obtido)
+echo "<MINIKUBE_IP> anomaly-detector.local" | sudo tee -a /etc/hosts
+
+# Testar endpoint de health (exemplo)
+curl http://anomaly-detector.local/health
+
+# Fazer uma predição (exemplo - ajuste conforme sua API)
+curl -X POST http://anomaly-detector.local/predict \
   -H "Content-Type: application/json" \
   -d '{
-    "timestamp": "2024-12-10T10:00:00Z",
-    "value": 42.5
+    "data": [[1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0]]
   }'
 
-# Resposta esperada:
-# {
-#   "anomaly": false,
-#   "model_version": "fallback",
-#   "timestamp": "2024-12-10T10:00:00Z",
-#   "value": 42.5,
-#   "model_source": "fallback",
-#   "processed_at": "2024-12-10T10:00:05.123456"
-# }
+# Acessar métricas do Ray Serve
+curl http://anomaly-detector.local/metrics
 ```
 
-### 14. Workflow GitOps - Fazendo alterações
+### 15. Workflow GitOps - Fazendo alterações
 
 #### Fluxo de atualização via Git
 
@@ -479,14 +520,11 @@ kubectl get all -n ml-dev
 │   │   │   ├── service.yaml                      # Service interno para expor o Mlflow dentro do cluster
 │   │   │   └── deployment.yaml                   # Deployment do Mlflow (container com credenciais montadas via Secret)
 │   │   │
-│   │   ├── ray-serve/                            # Ray Serve para serving de modelos
-│   │   │   ├── kustomization.yaml                # Agrega todos os manifestos do Ray Serve
-│   │   │   ├── deployment.yaml                   # Deployment do Ray Serve (head node + serve)
-│   │   │   ├── service.yaml                      # Services para API (8000) e dashboard (8265)
-│   │   │   ├── hpa.yaml                          # HorizontalPodAutoscaler para escalonamento
-│   │   │   ├── configmap.yaml                    # Configurações do Ray Serve
-│   │   │   ├── secret.yaml                       # Credenciais (MinIO/S3)
-│   │   │   └── app-configmap.yaml                # Código Python da aplicação Ray Serve
+│   │   ├── ray-cluster/                          # Ray Cluster para computação distribuída e serving
+│   │   │   ├── kustomization.yaml                # Agrega todos os manifestos do Ray
+│   │   │   ├── raycluster.yaml                   # Define o RayCluster (head + workers)
+│   │   │   ├── service.yaml                      # Services para head node (dashboard, serve)
+│   │   │   └── servicemonitor.yaml               # ServiceMonitor para métricas do Prometheus
 │   │   │
 │   │   └── istio/                                # Configuração de rede, segurança e roteamento usando Istio Service Mesh
 │   │       ├── kustomization.yaml                # Agrega todos os manifests de Istio para o ambiente
@@ -505,9 +543,7 @@ kubectl get all -n ml-dev
 │   │       ├── postgresql-mlflow-pvc-patch.yaml  # Patch do PVC do Postgres
 │   │       ├── minio-mlflow-deployment-patch.yaml # Patch do Deployment do MinIO
 │   │       ├── minio-mlflow-pvc-patch.yaml       # Patch do PVC do MinIO
-│   │       ├── ray-serve-deployment-patch.yaml   # Patch do Deployment do Ray Serve (recursos reduzidos)
-│   │       ├── ray-serve-hpa-patch.yaml          # Patch do HPA (limites ajustados)
-│   │       └── ray-serve-app-configmap-patch.yaml # Patch da aplicação (versão otimizada)
+│   │       └── raycluster-patch.yaml             # Patch do RayCluster (recursos reduzidos)
 │   │
 │   └── argocd/                                   # Configurações do ArgoCD
 │       ├── kustomization.yaml                    # Agrega e organiza os manifestos de ArgoCD
@@ -516,13 +552,14 @@ kubectl get all -n ml-dev
 │       └── app-aws.yaml                          # Aplicação ArgoCD apontando para o overlay de produção na AWS
 ```
 
-## 15. Monitoramento e Observabilidade
+## 16. Monitoramento e Observabilidade
 
 ### Métricas do Prometheus
 
 ```bash
 # Port-forward Prometheus
-kubectl port-forward -n monitoring svc/prometheus-operator-kube-prom-prometheus 9090:9090
+kubectl port-forward -n monitoring svc/prometheus-operator-kube-p-prometheus 9090:9090
+
 
 # Acessar em: http://localhost:9090
 # Queries úteis:
@@ -530,24 +567,32 @@ kubectl port-forward -n monitoring svc/prometheus-operator-kube-prom-prometheus 
 # - ray_serve_deployment_request_counter
 # - ray_serve_deployment_processing_latency_ms
 # - container_cpu_usage_seconds_total{namespace="ml-dev"}
+# - ray_cluster_active_nodes
 ```
 
 ### Ray Dashboard Metrics
 
 O Ray Dashboard (port 8265) fornece:
-- **Overview**: Status geral do Ray Serve
-- **Serve**: Deployments ativos, réplicas, latência, throughput
-- **Cluster**: Recursos (CPU, memória, disco)
-- **Logs**: Logs centralizados dos workers
+- **Cluster**: Status dos nodes (head + workers)
+- **Jobs**: Jobs em execução e histórico
+- **Serve**: Deployments ativos, réplicas, latência
+- **Actors**: Atores Ray em execução
+- **Logs**: Logs centralizados de todos os nodes
 
 ### Logs centralizados
 
 ```bash
 # Logs do MLflow
-kubectl logs -n ml-dev -l app=mlflow-server -f
+kubectl logs -n ml-dev -l app=mlflow -f
 
-# Logs do Ray Serve
-kubectl logs -n ml-dev -l app=ray-serve -f
+# Logs do Ray head node
+kubectl logs -n ml-dev -l ray.io/node-type=head -f
+
+# Logs dos Ray workers
+kubectl logs -n ml-dev -l ray.io/node-type=worker -f
+
+# Logs de um Ray Serve deployment específico
+kubectl logs -n ml-dev -l ray.io/serve=true -f
 
 # Logs do PostgreSQL
 kubectl logs -n ml-dev -l app=postgresql-mlflow -f
@@ -566,6 +611,7 @@ kubectl logs -n ml-dev --all-containers=true -f
    - **Kubernetes / Compute Resources / Namespace (Pods)** - métricas por namespace
    - **Kubernetes / Compute Resources / Workload** - métricas por deployment/statefulset
    - **Prometheus / Stats** - métricas do próprio Prometheus
+   - **Ray Dashboard** - importar dashboard do Ray (ID: 17096)
 
 ### Service Mesh (Istio) Observability
 
@@ -588,4 +634,4 @@ kubectl exec -n istio-system deployment/istiod -- \
 
 ## Troubleshooting
 
-[Me ajude!](TROUBLESHOOTING.md)
+  [Me ajude!](TROUBLESHOOTING.md)
