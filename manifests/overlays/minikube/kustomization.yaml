@@ -34,10 +34,6 @@ patches:
       name: minio-mlflow-data
   
   # Ray Serve
-  - path: ray-serve-deployment-patch.yaml
-    target:
-      kind: Deployment
-      name: ray-serve
   - path: ray-serve-hpa-patch.yaml
     target:
       kind: HorizontalPodAutoscaler
