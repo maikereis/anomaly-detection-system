@@ -7,15 +7,12 @@ resources:
   - configmap.yaml
   - secret.yaml
   - app-configmap.yaml
-  - deployment.yaml
-  - service.yaml
-  - hpa.yaml
+  - ray-service.yaml
   - servicemonitor.yaml
 
 labels:
   - includeSelectors: true
     includeTemplates: true
     pairs:
-      app: ray-serve
       component: inference
       managed-by: kustomize

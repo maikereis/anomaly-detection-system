@@ -372,7 +372,7 @@ kubectl get hpa -n ml-dev
 
 ```bash
 # Port-forward para MLflow
-kubectl port-forward -n ml-dev svc/mlflow 5000:5000
+kubectl port-forward -n ml-dev svc/mlflow-server 5000:5000
 
 # Acessar em: http://localhost:5000
 ```
@@ -497,7 +497,7 @@ kubectl get all -n ml-dev
 │   │   │   ├── kustomization.yaml                # Indexa o recurso de namespace para o Kustomize
 │   │   │   └── namespace.yaml                    # Define o Namespace (isolamento lógico no cluster)
 │   │   │
-│   │   ├── postgres-mlflow/                      # Postgres database para o Mlflow
+│   │   ├── postgres-mlflow/                      # Postgres database para o MLflow
 │   │   │   ├── configmap.yaml                    # Configurações não sensíveis do Postgres
 │   │   │   ├── secret.yaml                       # Credenciais e dados sensíveis do Postgres
 │   │   │   ├── kustomization.yaml                # Indexa os recursos do Postgres para o Kustomize
@@ -514,23 +514,25 @@ kubectl get all -n ml-dev
 │   │   │   └── deployment.yaml                   # Deployment do MinIO (container com credenciais montadas via Secret)
 │   │   │
 │   │   ├── mlflow/                               # MLflow para o gerenciamento de experimentos e model registry
-│   │   │   ├── configmap.yaml                    # Configurações não sensíveis do Mlflow
-│   │   │   ├── secret.yaml                       # Credenciais e dados sensíveis do Mlflow
-│   │   │   ├── kustomization.yaml                # Agrega e indexa todos os recursos do Mlflow para o Kustomize
-│   │   │   ├── service.yaml                      # Service interno para expor o Mlflow dentro do cluster
-│   │   │   └── deployment.yaml                   # Deployment do Mlflow (container com credenciais montadas via Secret)
+│   │   │   ├── configmap.yaml                    # Configurações não sensíveis do MLflow
+│   │   │   ├── secret.yaml                       # Credenciais e dados sensíveis do MLflow
+│   │   │   ├── kustomization.yaml                # Agrega e indexa todos os recursos do MLflow para o Kustomize
+│   │   │   ├── service.yaml                      # Service interno para expor o MLflow dentro do cluster
+│   │   │   └── deployment.yaml                   # Deployment do MLflow (container com credenciais montadas via Secret)
 │   │   │
-│   │   ├── ray-cluster/                          # Ray Cluster para computação distribuída e serving
-│   │   │   ├── kustomization.yaml                # Agrega todos os manifestos do Ray
-│   │   │   ├── raycluster.yaml                   # Define o RayCluster (head + workers)
-│   │   │   ├── service.yaml                      # Services para head node (dashboard, serve)
+│   │   ├── ray-serve/                            # Ray Serve para serving de modelos ML com Ray Cluster
+│   │   │   ├── kustomization.yaml                # Agrega todos os manifestos do Ray Serve
+│   │   │   ├── configmap.yaml                    # Configurações do Ray Serve (MLflow URI, logging, etc)
+│   │   │   ├── secret.yaml                       # Credenciais AWS/S3 para acesso ao MinIO
+│   │   │   ├── app-configmap.yaml                # Código Python da aplicação Ray Serve (serve_app.py)
+│   │   │   ├── ray-service.yaml                  # RayService CRD (gerenciado pelo KubeRay Operator)
 │   │   │   └── servicemonitor.yaml               # ServiceMonitor para métricas do Prometheus
 │   │   │
 │   │   └── istio/                                # Configuração de rede, segurança e roteamento usando Istio Service Mesh
-│   │       ├── kustomization.yaml                # Agrega todos os manifests de Istio para o ambiente
+│   │       ├── kustomization.yaml                # Agrega todos os manifestos de Istio para o ambiente
 │   │       ├── gateway.yaml                      # Gateway de entrada (Ingress Gateway do Istio)
 │   │       ├── virtual-service.yaml              # Regras de roteamento L7 (HTTP) aplicadas após o Gateway
-│   │       ├── destination-rule.yaml             # Define regras para destinos internos
+│   │       ├── destination-rule.yaml             # Define regras para destinos internos (load balancing, circuit breaker)
 │   │       ├── peer-authentication.yaml          # Define a política de autenticação mTLS entre pods
 │   │       ├── request-authentication.yaml       # Configura como o Istio valida JWTs de requisições externas
 │   │       └── authorization-policy.yaml         # Define políticas de autorização (RBAC do Istio)
@@ -539,17 +541,17 @@ kubectl get all -n ml-dev
 │   │   └── minikube/                             # Overlay para desenvolvimento local
 │   │       ├── kustomization.yaml                # Aplica patches e customizações específicas do ambiente Minikube
 │   │       ├── namespace-patch.yaml              # Patch que sobrescreve/ajusta o namespace para uso no Minikube
-│   │       ├── postgresql-mlflow-statefulset-patch.yaml  # Patch do StatefulSet do Postgres
-│   │       ├── postgresql-mlflow-pvc-patch.yaml  # Patch do PVC do Postgres
-│   │       ├── minio-mlflow-deployment-patch.yaml # Patch do Deployment do MinIO
-│   │       ├── minio-mlflow-pvc-patch.yaml       # Patch do PVC do MinIO
-│   │       └── raycluster-patch.yaml             # Patch do RayCluster (recursos reduzidos)
+│   │       ├── postgres-mlflow-statefulset-patch.yaml  # Patch do StatefulSet do Postgres (recursos reduzidos)
+│   │       ├── postgres-mlflow-pvc-patch.yaml    # Patch do PVC do Postgres (storage reduzido)
+│   │       ├── minio-mlflow-deployment-patch.yaml # Patch do Deployment do MinIO (recursos reduzidos)
+│   │       ├── minio-mlflow-pvc-patch.yaml       # Patch do PVC do MinIO (storage reduzido)
+│   │       ├── ray-serve-app-configmap-patch.yaml 
+│   │       └── ray-service-patch.yaml            # Patch do RayService (recursos reduzidos, replicas ajustadas)
 │   │
 │   └── argocd/                                   # Configurações do ArgoCD
 │       ├── kustomization.yaml                    # Agrega e organiza os manifestos de ArgoCD
 │       ├── project.yaml                          # ArgoCD Project que define escopo e permissões dos apps
-│       ├── app-minikube.yaml                     # Aplicação ArgoCD apontando para o overlay de Minikube
-│       └── app-aws.yaml                          # Aplicação ArgoCD apontando para o overlay de produção na AWS
+│       └── app-minikube.yaml                     # Aplicação ArgoCD apontando para o overlay de Minikube
 ```
 
 ## 16. Monitoramento e Observabilidade
@@ -564,8 +566,9 @@ kubectl port-forward -n monitoring svc/prometheus-operator-kube-p-prometheus 909
 # Acessar em: http://localhost:9090
 # Queries úteis:
 # - up{namespace="ml-dev"}
-# - ray_serve_deployment_request_counter
-# - ray_serve_deployment_processing_latency_ms
+# - ray_serve_replica_processing_queries
+# - ray_serve_replica_processing_latency_ms_sum
+# - ray_serve_num_http_requests
 # - container_cpu_usage_seconds_total{namespace="ml-dev"}
 # - ray_cluster_active_nodes
 ```

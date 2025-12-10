@@ -33,19 +33,11 @@ patches:
       kind: PersistentVolumeClaim
       name: minio-mlflow-data
   
-  # Ray Serve
-  - path: ray-serve-deployment-patch.yaml
+  # Ray Service (KubeRay)
+  - path: ray-service-patch.yaml
     target:
-      kind: Deployment
-      name: ray-serve
-  - path: ray-serve-hpa-patch.yaml
-    target:
-      kind: HorizontalPodAutoscaler
-      name: ray-serve-hpa
-  - path: ray-serve-app-configmap-patch.yaml
-    target:
-      kind: ConfigMap
-      name: ray-serve-app
+      kind: RayService
+      name: anomaly-detector
 
 labels:
   - includeSelectors: true

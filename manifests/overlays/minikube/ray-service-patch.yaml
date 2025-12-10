@@ -1,0 +1,66 @@
+apiVersion: ray.io/v1
+kind: RayService
+metadata:
+  name: anomaly-detector
+spec:
+  # Minikube: timeouts mais relaxados
+  serviceUnhealthySecondThreshold: 1200
+  deploymentUnhealthySecondThreshold: 600
+  
+  serveConfigV2: |
+    applications:
+      - name: anomaly_detector
+        import_path: serve_app:app
+        runtime_env:
+          working_dir: "/app"
+          pip:
+            - mlflow==3.6.0
+            - boto3==1.42.4
+            - numpy
+            - starlette
+        
+        deployments:
+          - name: AnomalyDetector
+            num_replicas: 1  # Minikube: começa com 1
+            max_concurrent_queries: 10
+            ray_actor_options:
+              num_cpus: 0.3
+              memory: 268435456  # 256 MiB
+
+  rayClusterConfig:
+    headGroupSpec:
+      rayStartParams:
+        dashboard-host: '0.0.0.0'
+        dashboard-port: '8265'
+        metrics-export-port: '8080'
+        num-cpus: '0'
+      
+      template:
+        spec:
+          containers:
+            - name: ray-head
+              resources:
+                requests:
+                  cpu: "300m"
+                  memory: "768Mi"
+                limits:
+                  cpu: "500m"
+                  memory: "1Gi"
+    
+    workerGroupSpecs:
+      - replicas: 1
+        minReplicas: 1
+        maxReplicas: 2  # Minikube: máximo 2 workers
+        groupName: worker-group
+        
+        template:
+          spec:
+            containers:
+              - name: ray-worker
+                resources:
+                  requests:
+                    cpu: "300m"
+                    memory: "512Mi"
+                  limits:
+                    cpu: "500m"
+                    memory: "768Mi"

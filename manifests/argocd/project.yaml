@@ -109,6 +109,14 @@ spec:
     - group: "security.istio.io"
       kind: AuthorizationPolicy
 
+    # KubeRay CRDs (namespace-scoped)
+    - group: "ray.io"
+      kind: RayService
+    - group: "ray.io"
+      kind: RayCluster
+    - group: "ray.io"
+      kind: RayJob
+
   # Sync windows
   syncWindows:
     - kind: allow
