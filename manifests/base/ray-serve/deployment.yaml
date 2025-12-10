@@ -1,0 +1,114 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ray-serve
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: ray-serve
+  template:
+    metadata:
+      labels:
+        app: ray-serve
+    spec:
+      initContainers:
+        # Espera MLflow estar pronto
+        - name: wait-for-mlflow
+          image: busybox:1.37.0
+          command:
+            - sh
+            - -c
+            - |
+              until nc -z mlflow-server 5000; do
+                echo "Waiting for MLflow..."
+                sleep 3
+              done
+              echo "MLflow ready!"
+      
+      containers:
+        - name: ray-serve
+          image: rayproject/ray:2.40.0-py311
+          
+          command:
+            - /bin/bash
+            - -c
+            - |
+              # Instala dependências
+              pip install --quiet \
+                mlflow==2.18.0 \
+                boto3==1.42.4 \
+                psycopg2-binary==2.9.11 \
+                numpy==2.2.1
+              
+              # Inicia Ray e faz deploy da aplicação
+              ray start --head --port=6379 --dashboard-host=0.0.0.0
+              serve run /app/serve_app.py --host=0.0.0.0 --port=8000
+          
+          ports:
+            - name: serve
+              containerPort: 8000
+            - name: dashboard
+              containerPort: 8265
+          
+          env:
+            - name: MLFLOW_TRACKING_URI
+              valueFrom:
+                configMapKeyRef:
+                  name: ray-serve-config
+                  key: MLFLOW_TRACKING_URI
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: ray-serve-secret
+                  key: AWS_ACCESS_KEY_ID
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: ray-serve-secret
+                  key: AWS_SECRET_ACCESS_KEY
+            - name: AWS_DEFAULT_REGION
+              valueFrom:
+                secretKeyRef:
+                  name: ray-serve-secret
+                  key: AWS_DEFAULT_REGION
+            - name: MLFLOW_S3_ENDPOINT_URL
+              valueFrom:
+                secretKeyRef:
+                  name: ray-serve-secret
+                  key: MLFLOW_S3_ENDPOINT_URL
+          
+          envFrom:
+            - configMapRef:
+                name: ray-serve-config
+          
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "1Gi"
+            limits:
+              cpu: "2000m"
+              memory: "4Gi"
+          
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 8265
+            initialDelaySeconds: 60
+            periodSeconds: 10
+          
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8265
+            initialDelaySeconds: 30
+            periodSeconds: 5
+          
+          volumeMounts:
+            - name: app-code
+              mountPath: /app
+      
+      volumes:
+        - name: app-code
+          configMap:
+            name: ray-serve-app
