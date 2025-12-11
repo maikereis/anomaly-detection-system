@@ -1,0 +1,167 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: rabbitmq
+spec:
+  serviceName: rabbitmq-headless
+  replicas: 3
+  selector:
+    matchLabels:
+      app: rabbitmq
+  template:
+    metadata:
+      labels:
+        app: rabbitmq
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "15692"
+    spec:
+      serviceAccountName: rabbitmq
+      
+      initContainers:
+        # Copy definitions file to the right location
+        - name: copy-definitions
+          image: busybox:1.37.0
+          command:
+            - sh
+            - -c
+            - |
+              cp /tmp/definitions/definitions.json /etc/rabbitmq/definitions.json
+              chmod 644 /etc/rabbitmq/definitions.json
+          volumeMounts:
+            - name: definitions
+              mountPath: /tmp/definitions
+            - name: rabbitmq-config-rw
+              mountPath: /etc/rabbitmq
+
+      containers:
+        - name: rabbitmq
+          image: rabbitmq:4.1-management-alpine
+          ports:
+            - containerPort: 5672
+              name: amqp
+            - containerPort: 15672
+              name: management
+            - containerPort: 15692
+              name: prometheus
+            - containerPort: 25672
+              name: clustering
+            - containerPort: 4369
+              name: epmd
+          
+          env:
+            # Cluster configuration
+            - name: RABBITMQ_USE_LONGNAME
+              value: "true"
+            - name: RABBITMQ_NODENAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: K8S_SERVICE_NAME
+              value: "rabbitmq-headless"
+            - name: K8S_HOSTNAME_SUFFIX
+              value: ".rabbitmq-headless.$(NAMESPACE).svc.cluster.local"
+            - name: NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            
+            # Credentials
+            - name: RABBITMQ_DEFAULT_USER
+              valueFrom:
+                secretKeyRef:
+                  name: rabbitmq-secret
+                  key: RABBITMQ_DEFAULT_USER
+            - name: RABBITMQ_DEFAULT_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: rabbitmq-secret
+                  key: RABBITMQ_DEFAULT_PASS
+            - name: RABBITMQ_ERLANG_COOKIE
+              valueFrom:
+                secretKeyRef:
+                  name: rabbitmq-secret
+                  key: RABBITMQ_ERLANG_COOKIE
+            
+            # Enable plugins
+            - name: RABBITMQ_ENABLED_PLUGINS_FILE
+              value: "/etc/rabbitmq/enabled_plugins"
+          
+          volumeMounts:
+            - name: rabbitmq-data
+              mountPath: /var/lib/rabbitmq/mnesia
+            - name: rabbitmq-config-rw
+              mountPath: /etc/rabbitmq
+            - name: plugins
+              mountPath: /etc/rabbitmq/enabled_plugins
+              subPath: enabled_plugins
+            - name: rabbitmq-conf
+              mountPath: /etc/rabbitmq/rabbitmq.conf
+              subPath: rabbitmq.conf
+          
+          resources:
+            requests:
+              cpu: 200m
+              memory: 512Mi
+            limits:
+              cpu: 1000m
+              memory: 2Gi
+          
+          livenessProbe:
+            exec:
+              command:
+                - rabbitmq-diagnostics
+                - -q
+                - ping
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 3
+          
+          readinessProbe:
+            exec:
+              command:
+                - rabbitmq-diagnostics
+                - -q
+                - check_running
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          
+          lifecycle:
+            preStop:
+              exec:
+                command:
+                  - rabbitmqctl
+                  - stop_app
+
+      volumes:
+        - name: definitions
+          configMap:
+            name: rabbitmq-config
+            items:
+              - key: definitions.json
+                path: definitions.json
+        - name: rabbitmq-config-rw
+          emptyDir: {}
+        - name: plugins
+          configMap:
+            name: rabbitmq-plugins
+        - name: rabbitmq-conf
+          configMap:
+            name: rabbitmq-conf
+        - name: rabbitmq-data
+          persistentVolumeClaim:
+            claimName: rabbitmq-data
+
+  # For production, use volumeClaimTemplates instead of shared PVC
+  # volumeClaimTemplates:
+  #   - metadata:
+  #       name: rabbitmq-data
+  #     spec:
+  #       accessModes: ["ReadWriteOnce"]
+  #       storageClassName: standard
+  #       resources:
+  #         requests:
+  #           storage: 10Gi

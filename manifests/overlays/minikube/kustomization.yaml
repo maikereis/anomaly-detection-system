@@ -33,6 +33,16 @@ patches:
       kind: PersistentVolumeClaim
       name: minio-mlflow-data
   
+  # RabbitMQ
+  - path: rabbitmq-statefulset-patch.yaml
+    target:
+      kind: StatefulSet
+      name: rabbitmq
+  - path: rabbitmq-pvc-patch.yaml
+    target:
+      kind: PersistentVolumeClaim
+      name: rabbitmq-data
+  
   # Ray Service (KubeRay)
   - path: ray-service-patch.yaml
     target:

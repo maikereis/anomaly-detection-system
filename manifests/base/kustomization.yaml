@@ -6,5 +6,6 @@ resources:
   - postgres-mlflow
   - minio-mlflow
   - mlflow
+  - rabbitmq
   - ray-serve
   - istio

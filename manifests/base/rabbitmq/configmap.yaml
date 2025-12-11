@@ -1,0 +1,122 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: rabbitmq-config
+data:
+  # Queue definitions for training pipeline
+  RABBITMQ_DEFAULT_VHOST: "ml-training"
+  
+  # Queue names
+  TRAINING_QUEUE: "training-jobs"
+  TRAINING_EVENTS_EXCHANGE: "training-events"
+  TRAINING_COMPLETION_QUEUE: "training-completion"
+  
+  # Connection settings for clients
+  RABBITMQ_HOST: "rabbitmq"
+  RABBITMQ_PORT: "5672"
+  RABBITMQ_MANAGEMENT_PORT: "15672"
+  
+  # Definitions file for automatic queue/exchange setup
+  definitions.json: |
+    {
+      "vhosts": [
+        {"name": "ml-training"}
+      ],
+      "permissions": [
+        {
+          "user": "training",
+          "vhost": "ml-training",
+          "configure": ".*",
+          "write": ".*",
+          "read": ".*"
+        }
+      ],
+      "exchanges": [
+        {
+          "name": "training-events",
+          "vhost": "ml-training",
+          "type": "topic",
+          "durable": true,
+          "auto_delete": false
+        },
+        {
+          "name": "training-dlx",
+          "vhost": "ml-training",
+          "type": "direct",
+          "durable": true,
+          "auto_delete": false
+        }
+      ],
+      "queues": [
+        {
+          "name": "training-jobs",
+          "vhost": "ml-training",
+          "durable": true,
+          "auto_delete": false,
+          "arguments": {
+            "x-queue-type": "quorum",
+            "x-dead-letter-exchange": "training-dlx",
+            "x-dead-letter-routing-key": "training-jobs-dlq"
+          }
+        },
+        {
+          "name": "training-jobs-dlq",
+          "vhost": "ml-training",
+          "durable": true,
+          "auto_delete": false,
+          "arguments": {
+            "x-queue-type": "quorum"
+          }
+        },
+        {
+          "name": "training-completion",
+          "vhost": "ml-training",
+          "durable": true,
+          "auto_delete": false,
+          "arguments": {
+            "x-queue-type": "quorum"
+          }
+        },
+        {
+          "name": "training-priority-high",
+          "vhost": "ml-training",
+          "durable": true,
+          "auto_delete": false,
+          "arguments": {
+            "x-queue-type": "quorum",
+            "x-dead-letter-exchange": "training-dlx",
+            "x-dead-letter-routing-key": "training-jobs-dlq"
+          }
+        }
+      ],
+      "bindings": [
+        {
+          "source": "training-events",
+          "vhost": "ml-training",
+          "destination": "training-jobs",
+          "destination_type": "queue",
+          "routing_key": "training.job.standard"
+        },
+        {
+          "source": "training-events",
+          "vhost": "ml-training",
+          "destination": "training-priority-high",
+          "destination_type": "queue",
+          "routing_key": "training.job.priority"
+        },
+        {
+          "source": "training-events",
+          "vhost": "ml-training",
+          "destination": "training-completion",
+          "destination_type": "queue",
+          "routing_key": "training.completed.*"
+        },
+        {
+          "source": "training-dlx",
+          "vhost": "ml-training",
+          "destination": "training-jobs-dlq",
+          "destination_type": "queue",
+          "routing_key": "training-jobs-dlq"
+        }
+      ]
+    }
