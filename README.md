@@ -240,9 +240,30 @@ kubectl create secret docker-registry ghcr-secret \
   --docker-email=<seu-email>
 ```
 
+### 7.2 Fazer um fork/clone do repositório auxiliar
+
+Contento a lógica para deploy de modelos a partir do mlflow
+
+```
+git clone https://github.com/maikereis/ray-serve-anomaly-detector
+cd ray-serve-anomaly-detector
+
+git commit --allow-empty -m "Trigger workflow"
+
+git push
+```
+
+Isso vai disparar um workflow que vai compilar e gerar uma imagem docker da aplicação e disponibilizar nos packages do seu repositório auxiliar. Os `ray-head` e `ray-worker` precisam dessa imagem para trabalhar.
+
+Depois do github actions worflow executar, tente verificar a imagem em:
+
+```
+https://github.com/<YOUR_USERNAME>/ray-serve-anomaly-detector/pkgs/container/ray-serve-anomaly-detector
+```
+
 ### 8. Atualizar os arquivos de configuração
 
-Em `manifests/argocd/app-minikube.yaml`:
+Em `manifests/argocd/app-minikube.yaml` atualize o repositório de origem e seu contato, dessa forma o ArgoCD fará a sincronização automática do cluster com a última revisão do repositório:
 
 ```yaml
 source:
@@ -253,13 +274,34 @@ info:
     value: your-email@example.com
 ```
 
-Em `manifests/overlays/minikube/kustomization.yaml`:
+Em `manifests/overlays/minikube/kustomization.yaml` atualize o link para documentação:
 
 ```yaml
 commonAnnotations:
   contact: your-email@example.com
   documentation: https://github.com/<YOUR_USERNAME>/anomaly-detection-system
 ```
+
+Em `manifests/base/ray-serve/ray-service.yaml` sustitua todas as ocorrências de image, assim quando os ray-head e ray-worker iniciarem vão fazer download dessa imagem:
+
+```yaml
+image: ghcr.io/<YOUR_USERNAME>/ray-serve-anomaly-detector:master-<REVISION>
+```
+
+Em `manifests/overlays/ray-service-patch.yaml` sustitua todas as ocorrências de image, assim quando os ray-head e ray-worker iniciarem vão fazer download dessa imagem:
+
+```yaml
+image: ghcr.io/<YOUR_USERNAME>/ray-serve-anomaly-detector:master-<REVISION>
+```
+
+...
+
+> **Nota:** Para desenvolvimento local, você pode usar a tag `latest` em vez de `master-<REVISION>`:
+> ```yaml
+> image: ghcr.io/<YOUR_USERNAME>/ray-serve-anomaly-detector:latest
+> imagePullPolicy: Always  # Obrigatório com latest
+> ```
+> Em produção, prefira tags imutáveis para rastreabilidade.
 
 ### 9. Gerar chave SSH
 
