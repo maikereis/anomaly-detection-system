@@ -381,7 +381,8 @@ kubectl port-forward -n ml-dev svc/mlflow-server 5000:5000
 
 ```bash
 # Port-forward para MinIO
-kubectl port-forward -n ml-dev svc/minio-mlflow 9001:9001
+kubectl port-forward -n ml-dev svc/minio-mlflow 9000:9000 9001:9001
+
 
 # Acessar em: http://localhost:9001
 # Credenciais estão no secret: kubectl get secret minio-mlflow-secret -n ml-dev -o yaml
