@@ -3,7 +3,6 @@ kind: Service
 metadata:
   name: minio-mlflow
 spec:
-  clusterIP: None
   selector:
     app: minio-mlflow
   ports:
