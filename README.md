@@ -468,6 +468,16 @@ kubectl --namespace monitoring port-forward $POD_NAME 3000
 # Password: obtida anteriormente com o comando na seção 5
 ```
 
+#### RabbitMQ
+
+```bash
+kubectl port-forward -n ml-dev svc/rabbitmq 15672:15672
+
+# Acessar em: http://localhost:15672
+# User: admin
+# Password: rabbitmq-admin-123
+```
+
 ### 14. Testar Ray Serve Deployment
 
 ```bash

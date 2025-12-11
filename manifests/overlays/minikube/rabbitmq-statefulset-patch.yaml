@@ -3,7 +3,7 @@ kind: StatefulSet
 metadata:
   name: rabbitmq
 spec:
-  serviceName: rabbitmq
+  serviceName: rabbitmq-headless
   selector:
     matchLabels:
       app: rabbitmq
@@ -31,3 +31,14 @@ spec:
             periodSeconds: 15
             timeoutSeconds: 5
             failureThreshold: 5
+
+  # Override volumeClaimTemplate storage size for minikube
+  volumeClaimTemplates:
+    - metadata:
+        name: rabbitmq-data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: standard
+        resources:
+          requests:
+            storage: 2Gi

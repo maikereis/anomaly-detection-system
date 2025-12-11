@@ -19,7 +19,7 @@ kubectl port-forward -n ml-dev svc/minio-mlflow 9000:9000 9001:9001 > /dev/null 
 echo "✓ MinIO: http://localhost:9001"
 
 # Prometheus (9090 -> 9090)
-kubectl port-forward -n monitoring svc/prometheus-operator-kube-prom-prometheus 9090:9090 > /dev/null 2>&1 &
+kubectl port-forward -n monitoring svc/prometheus-operator-kube-p-prometheus 9090:9090 > /dev/null 2>&1 &
 echo "✓ Prometheus: http://localhost:9090"
 
 # Ray-Serve (8265 -> 8265)
@@ -33,6 +33,10 @@ echo "✓ Mlflow: http://localhost:5000"
 # Anomaly Detector (8000 -> 8000)
 kubectl port-forward -n ml-dev svc/anomaly-detector-serve-svc 8000:8000 > /dev/null 2>&1 &
 echo "✓ Anomaly Detector: http://localhost:8000"
+
+# RabbitMQ (15672 -> 15672)
+kubectl port-forward -n ml-dev svc/rabbitmq 15672:15672
+echo "✓ RabbitMQ: http://localhost:15672"
 
 echo ""
 echo "Port-forwards running in background."

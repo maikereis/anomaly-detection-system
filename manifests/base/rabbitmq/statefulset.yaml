@@ -67,16 +67,6 @@ spec:
                   fieldPath: metadata.namespace
             
             # Credentials
-            - name: RABBITMQ_DEFAULT_USER
-              valueFrom:
-                secretKeyRef:
-                  name: rabbitmq-secret
-                  key: RABBITMQ_DEFAULT_USER
-            - name: RABBITMQ_DEFAULT_PASS
-              valueFrom:
-                secretKeyRef:
-                  name: rabbitmq-secret
-                  key: RABBITMQ_DEFAULT_PASS
             - name: RABBITMQ_ERLANG_COOKIE
               valueFrom:
                 secretKeyRef:
@@ -124,7 +114,7 @@ spec:
                 - rabbitmq-diagnostics
                 - -q
                 - check_running
-            initialDelaySeconds: 30
+            initialDelaySeconds: 60
             periodSeconds: 10
             timeoutSeconds: 5
             failureThreshold: 3
@@ -151,17 +141,15 @@ spec:
         - name: rabbitmq-conf
           configMap:
             name: rabbitmq-conf
-        - name: rabbitmq-data
-          persistentVolumeClaim:
-            claimName: rabbitmq-data
 
-  # For production, use volumeClaimTemplates instead of shared PVC
-  # volumeClaimTemplates:
-  #   - metadata:
-  #       name: rabbitmq-data
-  #     spec:
-  #       accessModes: ["ReadWriteOnce"]
-  #       storageClassName: standard
-  #       resources:
-  #         requests:
-  #           storage: 10Gi
+  # Use volumeClaimTemplates for proper per-pod storage
+  volumeClaimTemplates:
+    - metadata:
+        name: rabbitmq-data
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        storageClassName: standard
+        resources:
+          requests:
+            storage: 10Gi

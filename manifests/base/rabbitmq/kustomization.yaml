@@ -3,10 +3,9 @@ kind: Kustomization
 
 resources:
   - rbac.yaml
-  - pvc.yaml
   - configmap.yaml
-  - plugins-configmap.yaml
   - conf-configmap.yaml
+  - plugins-configmap.yaml
   - secret.yaml
   - service.yaml
   - headless-service.yaml

@@ -12,7 +12,7 @@ patches:
     target:
       kind: Namespace
       name: ml-dev
-  
+
   # PostgreSQL
   - path: postgres-mlflow-statefulset-patch.yaml
     target:
@@ -22,7 +22,7 @@ patches:
     target:
       kind: PersistentVolumeClaim
       name: postgres-mlflow-data
-  
+
   # MinIO
   - path: minio-mlflow-deployment-patch.yaml
     target:
@@ -32,17 +32,13 @@ patches:
     target:
       kind: PersistentVolumeClaim
       name: minio-mlflow-data
-  
+
   # RabbitMQ
   - path: rabbitmq-statefulset-patch.yaml
     target:
       kind: StatefulSet
       name: rabbitmq
-  - path: rabbitmq-pvc-patch.yaml
-    target:
-      kind: PersistentVolumeClaim
-      name: rabbitmq-data
-  
+
   # Ray Service (KubeRay)
   - path: ray-service-patch.yaml
     target:
@@ -50,7 +46,7 @@ patches:
       name: anomaly-detector
 
 labels:
-  - includeSelectors: true
+  - includeSelectors: false
     includeTemplates: true
     pairs:
       environment: development

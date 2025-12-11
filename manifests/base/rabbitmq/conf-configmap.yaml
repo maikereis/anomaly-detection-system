@@ -37,10 +37,10 @@ data:
     log.console.level = info
     log.file = false
     
-    ## Default user (will be created on first start)
+    ## Default vhost and permissions
+    ## NOTE: default_user and default_pass are set via environment variables
+    ## These only work on first boot with empty database
     default_vhost = /
-    default_user = admin
-    default_pass = rabbitmq-admin-123
     default_permissions.configure = .*
     default_permissions.read = .*
     default_permissions.write = .*

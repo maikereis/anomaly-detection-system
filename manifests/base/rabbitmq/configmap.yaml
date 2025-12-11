@@ -4,9 +4,9 @@ metadata:
   name: rabbitmq-config
 data:
   # Queue definitions for training pipeline
-  RABBITMQ_DEFAULT_VHOST: "ml-training"
+  RABBITMQ_DEFAULT_VHOST: "/"
   
-  # Queue names
+  # Queue names (for reference by other services)
   TRAINING_QUEUE: "training-jobs"
   TRAINING_EVENTS_EXCHANGE: "training-events"
   TRAINING_COMPLETION_QUEUE: "training-completion"
@@ -15,14 +15,43 @@ data:
   RABBITMQ_HOST: "rabbitmq"
   RABBITMQ_PORT: "5672"
   RABBITMQ_MANAGEMENT_PORT: "15672"
+  RABBITMQ_VHOST: "ml-training"
   
-  # Definitions file for automatic queue/exchange setup
   definitions.json: |
     {
+      "users": [
+        {
+          "name": "admin",
+          "password_hash": "W76Ffe0ti1RQ/lp07VZX6RyvIdwqB57wDG+j4BbzMoHnupVo",
+          "hashing_algorithm": "rabbit_password_hashing_sha256",
+          "tags": ["administrator"]
+        },
+        {
+          "name": "training",
+          "password_hash": "+7dw9qivFhNwf6D/q4+RJu9KSBFS2JpxAdmhy/LphTwEOpMU",
+          "hashing_algorithm": "rabbit_password_hashing_sha256",
+          "tags": []
+        }
+      ],
       "vhosts": [
+        {"name": "/"},
         {"name": "ml-training"}
       ],
       "permissions": [
+        {
+          "user": "admin",
+          "vhost": "/",
+          "configure": ".*",
+          "write": ".*",
+          "read": ".*"
+        },
+        {
+          "user": "admin",
+          "vhost": "ml-training",
+          "configure": ".*",
+          "write": ".*",
+          "read": ".*"
+        },
         {
           "user": "training",
           "vhost": "ml-training",
@@ -54,7 +83,6 @@ data:
           "durable": true,
           "auto_delete": false,
           "arguments": {
-            "x-queue-type": "quorum",
             "x-dead-letter-exchange": "training-dlx",
             "x-dead-letter-routing-key": "training-jobs-dlq"
           }
@@ -64,18 +92,14 @@ data:
           "vhost": "ml-training",
           "durable": true,
           "auto_delete": false,
-          "arguments": {
-            "x-queue-type": "quorum"
-          }
+          "arguments": {}
         },
         {
           "name": "training-completion",
           "vhost": "ml-training",
           "durable": true,
           "auto_delete": false,
-          "arguments": {
-            "x-queue-type": "quorum"
-          }
+          "arguments": {}
         },
         {
           "name": "training-priority-high",
@@ -83,7 +107,6 @@ data:
           "durable": true,
           "auto_delete": false,
           "arguments": {
-            "x-queue-type": "quorum",
             "x-dead-letter-exchange": "training-dlx",
             "x-dead-letter-routing-key": "training-jobs-dlq"
           }
