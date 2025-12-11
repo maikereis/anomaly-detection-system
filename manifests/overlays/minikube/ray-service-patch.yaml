@@ -9,15 +9,7 @@ spec:
   serveConfigV2: |
     applications:
       - name: anomaly_detector
-        import_path: serve_app:app
-        runtime_env:
-          env_vars:
-            PYTHONPATH: "/app:$PYTHONPATH"
-          pip:
-            - mlflow==3.6.0
-            - boto3==1.42.4
-            - numpy
-            - starlette
+        import_path: src.production:app
         
         deployments:
           - name: AnomalyDetector
@@ -38,13 +30,13 @@ spec:
 
       template:
         spec:
+          imagePullSecrets:
+            - name: ghcr-secret
           containers:
             - name: ray-head
-              image: anyscale/ray:2.52.0-slim-py312
+              image: ghcr.io/maikereis/ray-serve-anomaly-detector:master-351ef83
 
               volumeMounts:
-                - name: serve-app
-                  mountPath: /app
                 - name: ray-logs
                   mountPath: /tmp/ray
 
@@ -79,9 +71,6 @@ spec:
                 failureThreshold: 3
 
           volumes:
-            - name: serve-app
-              configMap:
-                name: ray-serve-app
             - name: ray-logs
               emptyDir: {}
 
@@ -93,13 +82,13 @@ spec:
 
         template:
           spec:
+            imagePullSecrets:
+              - name: ghcr-secret
             containers:
               - name: ray-worker
-                image: anyscale/ray:2.52.0-slim-py312
+                image: ghcr.io/maikereis/ray-serve-anomaly-detector:master-351ef83
 
                 volumeMounts:
-                  - name: serve-app
-                    mountPath: /app
                   - name: ray-logs
                     mountPath: /tmp/ray
 
@@ -134,8 +123,5 @@ spec:
                   failureThreshold: 3
 
             volumes:
-              - name: serve-app
-                configMap:
-                  name: ray-serve-app
               - name: ray-logs
                 emptyDir: {}

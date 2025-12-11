@@ -229,6 +229,17 @@ git clone https://github.com/<YOUR_USERNAME>/<YOUR_REPO>.git
 cd <YOUR_REPO>
 ```
 
+### 7.1 Configurar o PAT para download de containers
+
+```bash
+kubectl create secret docker-registry ghcr-secret \
+  --namespace=ml-dev \
+  --docker-server=ghcr.io \
+  --docker-username=maikereis \
+  --docker-password=<GITHUB_PAT> \
+  --docker-email=<seu-email>
+```
+
 ### 8. Atualizar os arquivos de configuração
 
 Em `manifests/argocd/app-minikube.yaml`:

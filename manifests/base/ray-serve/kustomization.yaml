@@ -6,7 +6,6 @@ namespace: ml-dev
 resources:
   - configmap.yaml
   - secret.yaml
-  - app-configmap.yaml
   - ray-service.yaml
   - service.yaml
   - servicemonitor.yaml

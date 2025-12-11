@@ -11,15 +11,7 @@ spec:
   serveConfigV2: |
     applications:
       - name: anomaly_detector
-        import_path: serve_app:app
-        runtime_env:
-          env_vars:
-            PYTHONPATH: "/app:$PYTHONPATH"
-          pip:
-            - mlflow==3.6.0
-            - boto3==1.42.4
-            - numpy
-            - starlette
+        import_path: src.production:app
         
         deployments:
           - name: AnomalyDetector
@@ -32,13 +24,12 @@ spec:
   # Ray Cluster configuration
   rayClusterConfig:
     # ===== RAY HEAD NODE =====
-    # Single head node (does not scale)
     headGroupSpec:
       rayStartParams:
         dashboard-host: "0.0.0.0"
         dashboard-port: "8265"
         metrics-export-port: "8080"
-        num-cpus: "0" # Head doesn't run workloads
+        num-cpus: "0"
 
       template:
         metadata:
@@ -48,9 +39,11 @@ spec:
             ray.io/cluster: anomaly-detector
 
         spec:
+          imagePullSecrets:
+            - name: ghcr-secret
           containers:
             - name: ray-head
-              image: anyscale/ray:2.52.0-slim-py312
+              image: ghcr.io/maikereis/ray-serve-anomaly-detector:master-351ef83
               imagePullPolicy: IfNotPresent
 
               ports:
@@ -83,8 +76,6 @@ spec:
                   value: "http://prometheus-kube-prometheus-prometheus.monitoring.svc:9090"
 
               volumeMounts:
-                - name: serve-app
-                  mountPath: /app
                 - name: ray-logs
                   mountPath: /tmp/ray
                 - name: shared-mem
@@ -126,9 +117,6 @@ spec:
                     command: ["/bin/sh", "-c", "ray stop"]
 
           volumes:
-            - name: serve-app
-              configMap:
-                name: ray-serve-app
             - name: ray-logs
               emptyDir: {}
             - name: shared-mem
@@ -137,7 +125,6 @@ spec:
                 sizeLimit: 2Gi
 
     # ===== RAY WORKER NODES =====
-    # Workers scale horizontally
     workerGroupSpecs:
       - replicas: 2
         minReplicas: 1
@@ -156,8 +143,9 @@ spec:
               ray.io/group: worker-group
 
           spec:
+            imagePullSecrets:
+              - name: ghcr-secret
             initContainers:
-              # Wait for head to be ready
               - name: wait-for-head
                 image: busybox:1.37.0
                 command:
@@ -171,7 +159,7 @@ spec:
 
             containers:
               - name: ray-worker
-                image: anyscale/ray:2.52.0-slim-py312
+                image: ghcr.io/maikereis/ray-serve-anomaly-detector:master-351ef83
                 imagePullPolicy: IfNotPresent
 
                 envFrom:
@@ -181,8 +169,6 @@ spec:
                       name: ray-serve-secret
 
                 volumeMounts:
-                  - name: serve-app
-                    mountPath: /app
                   - name: ray-logs
                     mountPath: /tmp/ray
                   - name: shared-mem
@@ -224,9 +210,6 @@ spec:
                       command: ["/bin/sh", "-c", "ray stop"]
 
             volumes:
-              - name: serve-app
-                configMap:
-                  name: ray-serve-app
               - name: ray-logs
                 emptyDir: {}
               - name: shared-mem
