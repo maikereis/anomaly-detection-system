@@ -3,15 +3,21 @@ kind: ServiceMonitor
 metadata:
   name: ray-metrics
   namespace: ml-dev
+  labels:
+    release: prometheus-operator-kube-p
+    app: ray-cluster
+    component: metrics
 spec:
   selector:
     matchLabels:
       app: ray-cluster
       component: metrics
+
   endpoints:
     - port: dashboard
       path: /api/prometheus_metrics
       interval: 30s
+      scrapeTimeout: 10s
       relabelings:
         - sourceLabels: [__meta_kubernetes_pod_name]
           targetLabel: pod
@@ -21,10 +27,13 @@ spec:
           targetLabel: component
         - replacement: "dashboard"
           targetLabel: metrics_source
+        - sourceLabels: [__meta_kubernetes_pod_label_ray_io_cluster]
+          targetLabel: ray_cluster
 
     - port: metrics
       path: /metrics
       interval: 30s
+      scrapeTimeout: 10s
       relabelings:
         - sourceLabels: [__meta_kubernetes_pod_name]
           targetLabel: pod
@@ -34,3 +43,5 @@ spec:
           targetLabel: component
         - replacement: "raylet"
           targetLabel: metrics_source
+        - sourceLabels: [__meta_kubernetes_pod_label_ray_io_cluster]
+          targetLabel: ray_cluster
