@@ -4,12 +4,17 @@ metadata:
   name: ray-metrics
   namespace: ml-dev
   labels:
-    release: prometheus-operator-kube-p
     app: ray-cluster
+    component: inference
 spec:
   selector:
     matchLabels:
       app: ray-cluster
+
+  namespaceSelector:
+    matchNames:
+      - ml-dev
+
   endpoints:
     - port: dashboard
       path: /metrics
