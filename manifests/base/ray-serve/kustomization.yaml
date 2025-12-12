@@ -8,7 +8,8 @@ resources:
   - secret.yaml
   - ray-service.yaml
   - service.yaml
-  - servicemonitor.yaml
+  #- servicemonitor.yaml
+  - podmonitor.yaml
 
 labels:
   - includeSelectors: false
