@@ -35,7 +35,7 @@ kubectl port-forward -n ml-dev svc/anomaly-detector-serve-svc 8000:8000 > /dev/n
 echo "✓ Anomaly Detector: http://localhost:8000"
 
 # RabbitMQ (15672 -> 15672)
-kubectl port-forward -n ml-dev svc/rabbitmq 15672:15672
+kubectl port-forward -n ml-dev svc/rabbitmq 15672:15672 > /dev/null 2>&1 &
 echo "✓ RabbitMQ: http://localhost:15672"
 
 echo ""
