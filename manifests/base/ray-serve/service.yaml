@@ -4,11 +4,9 @@ metadata:
   name: ray-metrics
   labels:
     app: ray-cluster
-    component: metrics
 spec:
   selector:
-    ray.io/cluster: anomaly-detector
-    ray.io/node-type: head
+    app: ray-cluster
   ports:
     - name: dashboard
       port: 8265

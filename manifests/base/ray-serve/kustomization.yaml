@@ -11,7 +11,7 @@ resources:
   - servicemonitor.yaml
 
 labels:
-  - includeSelectors: true
+  - includeSelectors: false
     includeTemplates: true
     pairs:
       component: inference
