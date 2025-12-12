@@ -79,6 +79,8 @@ spec:
             - containerPort: 5000
               name: http
           env:
+            - name: MLFLOW_SERVER_ALLOWED_HOSTS
+              value: "mlflow-server,mlflow-server:5000,mlflow-server.ml-dev.svc.cluster.local,localhost,localhost:5000,127.0.0.1,127.0.0.1:5000"
             - name: PYTHONPATH
               value: "/packages"
             - name: AWS_ACCESS_KEY_ID
