@@ -36,6 +36,18 @@ spec:
             - name: ray-head
               image: ghcr.io/maikereis/ray-serve-anomaly-detector:master-351ef83
 
+              envFrom:
+                - configMapRef:
+                    name: ray-serve-config
+                - secretRef:
+                    name: ray-serve-secret
+
+              env:
+                - name: RAY_GRAFANA_HOST
+                  value: "http://prometheus-grafana.monitoring.svc:80"
+                - name: RAY_PROMETHEUS_HOST
+                  value: "http://prometheus-kube-prometheus-prometheus.monitoring.svc:9090"
+
               volumeMounts:
                 - name: ray-logs
                   mountPath: /tmp/ray
@@ -87,6 +99,12 @@ spec:
             containers:
               - name: ray-worker
                 image: ghcr.io/maikereis/ray-serve-anomaly-detector:master-351ef83
+
+                envFrom:
+                  - configMapRef:
+                      name: ray-serve-config
+                  - secretRef:
+                      name: ray-serve-secret
 
                 volumeMounts:
                   - name: ray-logs
