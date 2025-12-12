@@ -34,7 +34,7 @@ spec:
             - name: ghcr-secret
           containers:
             - name: ray-head
-              image: ghcr.io/maikereis/ray-serve-anomaly-detector:master-351ef83
+              image: ghcr.io/maikereis/ray-serve-anomaly-detector:latest # for development
 
               envFrom:
                 - configMapRef:
@@ -98,7 +98,7 @@ spec:
               - name: ghcr-secret
             containers:
               - name: ray-worker
-                image: ghcr.io/maikereis/ray-serve-anomaly-detector:master-351ef83
+                image: ghcr.io/maikereis/ray-serve-anomaly-detector:latest # for development
 
                 envFrom:
                   - configMapRef:
