@@ -39,6 +39,12 @@ patches:
       kind: StatefulSet
       name: rabbitmq
 
+  # Training API
+  - path: training-api-deployment-patch.yaml
+    target:
+      kind: Deployment
+      name: training-api
+
   # Ray Service (KubeRay)
   - path: ray-service-patch.yaml
     target:
