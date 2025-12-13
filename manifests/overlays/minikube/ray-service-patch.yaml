@@ -12,11 +12,11 @@ spec:
         import_path: src.production:app
         
         deployments:
-          - name: AnomalyDetector
-            num_replicas: 1
-            max_concurrent_queries: 10
+          - name: AsyncAnomalyDetector
+            num_replicas: 4
+            max_concurrent_queries: 6
             ray_actor_options:
-              num_cpus: 0.3
+              num_cpus: 0.2
               memory: 268435456
 
   rayClusterConfig:
@@ -55,9 +55,9 @@ spec:
               resources:
                 requests:
                   cpu: "500m"
-                  memory: "1Gi"
+                  memory: "512Mi"
                 limits:
-                  cpu: "1"
+                  cpu: "500m"
                   memory: "2Gi"
 
               livenessProbe:
@@ -89,8 +89,11 @@ spec:
     workerGroupSpecs:
       - replicas: 1
         minReplicas: 1
-        maxReplicas: 2
+        maxReplicas: 1
         groupName: worker-group
+
+        rayStartParams:
+          num-cpus: "2"
 
         template:
           spec:
@@ -112,11 +115,11 @@ spec:
 
                 resources:
                   requests:
-                    cpu: "500m"
-                    memory: "1Gi"
-                  limits:
-                    cpu: "1"
+                    cpu: "1000m"
                     memory: "2Gi"
+                  limits:
+                    cpu: "2"
+                    memory: "4Gi"
 
                 livenessProbe:
                   exec:
