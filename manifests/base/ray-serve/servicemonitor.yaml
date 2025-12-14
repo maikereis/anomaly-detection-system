@@ -2,7 +2,6 @@
 # kind: ServiceMonitor
 # metadata:
 #   name: ray-metrics
-#   namespace: ml-dev
 #   labels:
 #     app: ray-cluster
 #     component: inference

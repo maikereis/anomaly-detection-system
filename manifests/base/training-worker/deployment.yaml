@@ -1,0 +1,72 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: training-worker
+  labels:
+    app: training-worker
+    component: training
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: training-worker
+  template:
+    metadata:
+      labels:
+        app: training-worker
+        component: training
+    spec:
+      initContainers:
+        - name: wait-for-rabbitmq
+          image: busybox:1.37.0
+          command:
+            - sh
+            - -c
+            - |
+              until nc -z rabbitmq 5672; do
+                echo "Waiting for RabbitMQ..."
+                sleep 2
+              done
+        
+        - name: wait-for-mlflow
+          image: busybox:1.37.0
+          command:
+            - sh
+            - -c
+            - |
+              until nc -z mlflow-server 5000; do
+                echo "Waiting for MLflow..."
+                sleep 2
+              done
+
+      containers:
+        - name: worker
+          image: ghcr.io/maikereis/training-worker:latest
+          imagePullPolicy: Always
+          
+          envFrom:
+            - configMapRef:
+                name: training-worker-config
+            - secretRef:
+                name: training-worker-secret
+          
+          resources:
+            requests:
+              cpu: 500m
+              memory: 250Mi
+            limits:
+              cpu: 500m
+              memory: 500Mi
+          
+          # Graceful shutdown
+          lifecycle:
+            preStop:
+              exec:
+                command: ["sleep", "10"]
+
+      imagePullSecrets:
+        - name: ghcr-secret
+      
+      restartPolicy: Always
+      
+      terminationGracePeriodSeconds: 30

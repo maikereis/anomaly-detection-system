@@ -8,5 +8,6 @@ resources:
   - mlflow
   - rabbitmq
   - training-api
+  - training-worker
   - ray-serve
   - istio

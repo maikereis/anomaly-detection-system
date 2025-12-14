@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: training-worker-config
+data:
+  RABBITMQ_EXCHANGE: "training-events"
+  TRAINING_QUEUE: "training-jobs"
+  MLFLOW_TRACKING_URI: "http://mlflow-server:5000"
+  MLFLOW_EXPERIMENT_NAME: "anomaly-detection-training"
+  
+  # Model hyperparameters
+  CONTAMINATION: "0.1"
+  N_ESTIMATORS: "100"
+  MAX_SAMPLES: "auto"
+  RANDOM_STATE: "42"
