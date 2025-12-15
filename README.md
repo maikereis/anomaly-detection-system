@@ -4,18 +4,99 @@ Sistema de detecção de anomalias
 
 ---
 
+Arquitetura
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    Istio Ingress Gateway                        │
+│         (mTLS, Rate Limiting, JWT Validation, Routing)          │
+└─────────────┬───────────────────────────────┬───────────────────┘
+              │                               │
+    ┌─────────▼──────────┐           ┌────────▼─────────┐
+    │  Training API      │           │  Ray Serve       │
+    │  (FastAPI)         │           │  (Inference)     │
+    │                    │           │                  │
+    │  POST /fit/{id}    │           │  POST /predict/  │
+    │  GET /health       │           │       {id}       │
+    │                    │           │  POST /predict/  │
+    │  Rate: 5/min/id    │           │       {id}/batch │
+    │                    │           │  GET /health     │
+    └─────────┬──────────┘           └────────┬─────────┘
+              │                               │
+              │                               │ (async load)
+              │                               │
+    ┌─────────▼──────────┐           ┌────────▼─────────┐
+    │  RabbitMQ          │           │  AsyncModelCache │
+    │  (Job Queue)       │           │  (LRU + TTL)     │
+    │                    │           │                  │
+    │  Exchange: topic   │           │  • asyncio.Lock  │
+    │   training-events  │           │  • 50 models     │
+    │                    │           │  • 2h TTL        │
+    │  Queue:            │           └────────┬─────────┘
+    │   training-jobs    │                    │
+    │   training-jobs-   │           ┌────────▼─────────┐
+    │     dlq            │           │ AsyncCircuit     │
+    │                    │           │  Breaker         │
+    │  Routing:          │           │                  │
+    │   training.job.    │           │  • Retry: 30s    │
+    │     standard       │           │  • Threshold: 3  │
+    └─────────┬──────────┘           │  • Auto-recover  │
+              │                      └────────┬─────────┘
+              │                               │
+    ┌─────────▼──────────┐                    │
+    │  Training Workers  │                    │
+    │  (Consumer)        │                    │
+    │                    │                    │
+    │  • Prefetch: 1     │                    │
+    │  • Async consume   │                    │
+    │  • HPA: 2-10       │                    │
+    │                    │                    │
+    │  1. Parse message  │                    │
+    │  2. Train model    │                    │
+    │  3. Log to MLflow  │                    │
+    │  4. Register model │                    │
+    │  5. Publish event  │                    │
+    │  6. ACK message    │                    │
+    └─────────┬──────────┘                    │
+              │                               │
+              └──────────┬────────────────────┘
+                         │
+    ┌────────────────────▼────────────────────────────┐
+    │           MLflow Tracking Server                │
+    │  (Model Registry + Experiment Tracking)         │
+    │                                                 │
+    │  • Register: model_od_{series_id}               │
+    │  • Versions: None → Production                  │
+    │  • Metrics: anomaly scores, data stats          │
+    │  • Artifacts: sklearn models + signatures       │
+    └─────────┬──────────────┬────────────────────────┘
+              │              │
+    ┌─────────▼──────┐  ┌────▼─────────────────┐
+    │  PostgreSQL    │  │  MinIO               │
+    │  (Metadata)    │  │  (S3-compatible)     │
+    │                │  │                      │
+    │  • Runs        │  │  • Model artifacts   │
+    │  • Parameters  │  │  • Training data     │
+    │  • Metrics     │  │  • Bucket: mlflow-   │
+    │  • Registry    │  │    artifacts         │
+    └────────────────┘  └──────────────────────┘
+```
+
 ## Sobre
 
 Este repositório documenta o processo de desenho de um sistema de detecção de anomalias.
 
 ## Pré-requisitos
 
+- **Hardware**: 6 CPU Cores, 12 GB de RAM
+- **System**: Linux Ubuntu ou WSL2
 - **Docker**: 29.1.1, build: 0aedba5
 - **kubectl**: v1.34.2
 - **Kustomize**: v5.7.1
 - **Minikube**: v1.37.0, commit: 65318f4
 - **Helm**: v3.19.2, commit: 8766e71
 - **Git**: 2.43.0
+- **SSH**: chave ssh registrada no github que será utilizada pelo argoCD para se conectar ao repo.
 - **GitHub Personal Access Token** com permissões:
   - `repo` (acesso a repositórios privados)
   - `read:packages` (ler imagens do GHCR)
@@ -40,11 +121,11 @@ chmod +x scripts/1-config-cluster.sh
 
 Este script irá:
 - Iniciar o Minikube
-- Instalar Istio
 - Instalar Cert-Manager
 - Instalar KubeRay Operator
 - Instalar Prometheus Stack
 - Instalar ArgoCD
+- Instalar Istio
 ---
 
 ## Setup Manual (Passo a Passo)
@@ -240,9 +321,7 @@ kubectl create secret docker-registry ghcr-secret \
   --docker-email=<seu-email>
 ```
 
-### 7.2 Fazer um fork/clone do repositório auxiliar
-
-Contento a lógica para deploy de modelos a partir do mlflow
+### 7.2 Fazer um fork/clone do repositório da API de inferência
 
 ```
 git clone https://github.com/maikereis/ray-serve-anomaly-detector
@@ -259,6 +338,28 @@ Depois do github actions worflow executar, tente verificar a imagem em:
 
 ```
 https://github.com/<YOUR_USERNAME>/ray-serve-anomaly-detector/pkgs/container/ray-serve-anomaly-detector
+```
+
+### 7.3 Fazer um fork/clone do repositório da API de trainemento
+
+```
+git clone https://github.com/maikereis/training-api
+cd training-api
+
+git commit --allow-empty -m "Trigger workflow"
+
+git push
+```
+
+### 7.3 Fazer um fork/clone do repositório do worker de treinamento
+
+```
+git clone https://github.com/maikereis/training-worker
+cd training-worker
+
+git commit --allow-empty -m "Trigger workflow"
+
+git push
 ```
 
 ### 8. Atualizar os arquivos de configuração
@@ -346,7 +447,7 @@ kubectl label secret repo-anomaly-detection-system-ssh \
 
 ```bash
 # Aplica ArgoCD manifestos (cria Project e Application)
-kubectl apply -k manifests/argocd
+kubectl apply -k manifests/argocd/
 
 # Verifica se a aplicação foi criada
 kubectl get application -n argocd

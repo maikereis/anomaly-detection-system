@@ -14,16 +14,16 @@ spec:
         deployments:
           - name: AsyncAnomalyDetector
             autoscaling_config:
-              min_replicas: 3
-              max_replicas: 10
-              target_ongoing_requests: 25
-              max_ongoing_requests: 50
-              upscale_delay_s: 10.0
+              min_replicas: 8
+              max_replicas: 12
+              target_ongoing_requests: 50
+              max_ongoing_requests: 100
+              upscale_delay_s: 2.0
               downscale_delay_s: 300.0
-              smoothing_factor: 0.5
+              upscaling_factor: 2
             
             ray_actor_options:
-              num_cpus: 1.0
+              num_cpus: 0.5
               memory: 536870912  # 512MB
 
   rayClusterConfig:
@@ -113,7 +113,7 @@ spec:
     workerGroupSpecs:
       - replicas: 1
         minReplicas: 1
-        maxReplicas: 3
+        maxReplicas: 1
         groupName: worker-group
 
         rayStartParams:
