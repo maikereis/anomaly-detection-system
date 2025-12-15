@@ -82,6 +82,11 @@ Arquitetura
     └────────────────┘  └──────────────────────┘
 ```
 
+Esse projeto faz parte de um ecossistema que inclui:
+- https://github.com/maikereis/training-api
+- https://github.com/maikereis/training-worker
+- https://github.com/maikereis/ray-serve-anomaly-detector
+
 ## Sobre
 
 Este repositório documenta o processo de desenho de um sistema de detecção de anomalias.
