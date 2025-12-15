@@ -88,18 +88,32 @@ Este repositório documenta o processo de desenho de um sistema de detecção de
 
 ## Pré-requisitos
 
-- **Hardware**: 6 CPU Cores, 12 GB de RAM
-- **System**: Linux Ubuntu ou WSL2
-- **Docker**: 29.1.1, build: 0aedba5
-- **kubectl**: v1.34.2
-- **Kustomize**: v5.7.1
-- **Minikube**: v1.37.0, commit: 65318f4
-- **Helm**: v3.19.2, commit: 8766e71
-- **Git**: 2.43.0
-- **SSH**: chave ssh registrada no github que será utilizada pelo argoCD para se conectar ao repo.
+### Hardware
+- **CPU**: 6 cores
+- **RAM**: 12 GB
+- **Disk**: 50 GB livres
+
+### Sistema Operacional
+- Linux Ubuntu 20.04+ ou
+- Windows com WSL2
+
+### Ferramentas Necessárias
+
+| Ferramenta | Versão Mínima | Instalação |
+|-----------|---------------|-----------|
+| Docker | 29.1.1+ | [docs.docker.com](https://docs.docker.com/get-docker/) |
+| kubectl | v1.34.2+ | [kubernetes.io/docs/tasks/tools](https://kubernetes.io/docs/tasks/tools/) |
+| Minikube | v1.37.0+ | [minikube.sigs.k8s.io](https://minikube.sigs.k8s.io/docs/start/) |
+| Helm | v3.19.2+ | [helm.sh/docs/intro/install](https://helm.sh/docs/intro/install/) |
+| Kustomize | v5.7.1+ | [kubectl.docs.kubernetes.io/installation/kustomize](https://kubectl.docs.kubernetes.io/installation/kustomize/) |
+| Git | 2.43.0+ | Nativo na maioria dos SOs |
+
+### Credenciais Necessárias
+
 - **GitHub Personal Access Token** com permissões:
   - `repo` (acesso a repositórios privados)
-  - `read:packages` (ler imagens do GHCR)
+  - `read:packages` (ler imagens do GitHub Container Registry)
+- **SSH Key** registrada no GitHub (para ArgoCD)
 
 ## Instalando as dependências
 
@@ -580,33 +594,20 @@ kubectl port-forward -n ml-dev svc/rabbitmq 15672:15672
 ```
 
 ### 14. Testar Ray Serve Deployment
+Faça um port foward da aplicação de inferência.
 
 ```bash
-# Obter o endpoint do Ray Serve
-kubectl get svc -n ml-dev | grep ray
-
-# Para ambiente local (Minikube), configurar ingress
-# Obter IP do Minikube
-minikube ip
-
-# Adicionar entrada no /etc/hosts (substitua <MINIKUBE_IP> pelo IP obtido)
-echo "<MINIKUBE_IP> anomaly-detector.local" | sudo tee -a /etc/hosts
-
-# Testar endpoint de health (exemplo)
-curl http://anomaly-detector.local/health
-
-# Fazer uma predição (exemplo - ajuste conforme sua API)
-curl -X POST http://anomaly-detector.local/predict \
-  -H "Content-Type: application/json" \
-  -d '{
-    "data": [[1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0]]
-  }'
-
-# Acessar métricas do Ray Serve
-curl http://anomaly-detector.local/metrics
+kubectl port-forward -n ml-dev svc/anomaly-detector-serve-svc 8000:8000
 ```
 
-### 15. Workflow GitOps - Fazendo alterações
+### 15. Testar a API de treinamento
+Faça um port foward da aplicação de treinamento.
+
+```bash
+kubectl port-forward -n ml-dev svc/training-api 8030:8030 --address 0.0.0.0
+```
+
+### 16. Workflow GitOps - Fazendo alterações
 
 #### Fluxo de atualização via Git
 
@@ -650,73 +651,99 @@ kubectl get all -n ml-dev
 # Se não, reverter: kubectl delete -k manifests/overlays/minikube/
 ```
 
-## Estrutura
+## Estrutura do Repositório
 
 ```
 .
 ├── manifests/                                    # Manifestos Kubernetes gerenciados pelo ArgoCD
-│   ├── base/                                     # Recursos base reutilizados por todos os ambientes
-│   │   ├── kustomization.yaml                    # Agrega todos os recursos do diretório base
-│   │   │
-│   │   ├── namespace/
-│   │   │   ├── kustomization.yaml                # Indexa o recurso de namespace para o Kustomize
-│   │   │   └── namespace.yaml                    # Define o Namespace (isolamento lógico no cluster)
-│   │   │
-│   │   ├── postgres-mlflow/                      # Postgres database para o MLflow
-│   │   │   ├── configmap.yaml                    # Configurações não sensíveis do Postgres
-│   │   │   ├── secret.yaml                       # Credenciais e dados sensíveis do Postgres
-│   │   │   ├── kustomization.yaml                # Indexa os recursos do Postgres para o Kustomize
-│   │   │   ├── pvc.yaml                          # PersistentVolumeClaim que solicita armazenamento persistente
-│   │   │   ├── service.yaml                      # Serviço para expor o Postgres dentro do cluster
-│   │   │   └── statefulset.yaml                  # StatefulSet que define o Pod com armazenamento persistente
-│   │   │
-│   │   ├── minio-mlflow/                         # MinIO utilizado como backend de artefatos do MLflow
-│   │   │   ├── configmap.yaml                    # Configurações não sensíveis do MinIO
-│   │   │   ├── secret.yaml                       # Credenciais e dados sensíveis do MinIO
-│   │   │   ├── kustomization.yaml                # Agrega e indexa todos os recursos do MinIO para o Kustomize
-│   │   │   ├── pvc.yaml                          # PersistentVolumeClaim para armazenamento local dos buckets do MinIO
-│   │   │   ├── service.yaml                      # Service interno para expor o MinIO dentro do cluster
-│   │   │   └── deployment.yaml                   # Deployment do MinIO (container com credenciais montadas via Secret)
-│   │   │
-│   │   ├── mlflow/                               # MLflow para o gerenciamento de experimentos e model registry
-│   │   │   ├── configmap.yaml                    # Configurações não sensíveis do MLflow
-│   │   │   ├── secret.yaml                       # Credenciais e dados sensíveis do MLflow
-│   │   │   ├── kustomization.yaml                # Agrega e indexa todos os recursos do MLflow para o Kustomize
-│   │   │   ├── service.yaml                      # Service interno para expor o MLflow dentro do cluster
-│   │   │   └── deployment.yaml                   # Deployment do MLflow (container com credenciais montadas via Secret)
-│   │   │
-│   │   ├── ray-serve/                            # Ray Serve para serving de modelos ML com Ray Cluster
-│   │   │   ├── kustomization.yaml                # Agrega todos os manifestos do Ray Serve
-│   │   │   ├── configmap.yaml                    # Configurações do Ray Serve (MLflow URI, logging, etc)
-│   │   │   ├── secret.yaml                       # Credenciais AWS/S3 para acesso ao MinIO
-│   │   │   ├── app-configmap.yaml                # Código Python da aplicação Ray Serve (serve_app.py)
-│   │   │   ├── ray-service.yaml                  # RayService CRD (gerenciado pelo KubeRay Operator)
-│   │   │   └── servicemonitor.yaml               # ServiceMonitor para métricas do Prometheus
-│   │   │
-│   │   └── istio/                                # Configuração de rede, segurança e roteamento usando Istio Service Mesh
-│   │       ├── kustomization.yaml                # Agrega todos os manifestos de Istio para o ambiente
-│   │       ├── gateway.yaml                      # Gateway de entrada (Ingress Gateway do Istio)
-│   │       ├── virtual-service.yaml              # Regras de roteamento L7 (HTTP) aplicadas após o Gateway
-│   │       ├── destination-rule.yaml             # Define regras para destinos internos (load balancing, circuit breaker)
-│   │       ├── peer-authentication.yaml          # Define a política de autenticação mTLS entre pods
-│   │       ├── request-authentication.yaml       # Configura como o Istio valida JWTs de requisições externas
-│   │       └── authorization-policy.yaml         # Define políticas de autorização (RBAC do Istio)
+│   ├── base/                                     # Recursos base reutilizáveis
+│   │   ├── kustomization.yaml                    # Agrega todos os recursos base
+│   │   ├── namespace/                            # Definição do namespace ml-dev
+│   │   ├── postgres-mlflow/                      # PostgreSQL para metadata do MLflow
+│   │   │   ├── statefulset.yaml
+│   │   │   ├── service.yaml
+│   │   │   ├── pvc.yaml
+│   │   │   ├── configmap.yaml
+│   │   │   └── secret.yaml
+│   │   ├── minio-mlflow/                         # MinIO (S3-compatible) para artifacts
+│   │   │   ├── deployment.yaml
+│   │   │   ├── service.yaml
+│   │   │   ├── pvc.yaml
+│   │   │   ├── configmap.yaml
+│   │   │   └── secret.yaml
+│   │   ├── mlflow/                               # MLflow Tracking Server + Model Registry
+│   │   │   ├── deployment.yaml
+│   │   │   ├── service.yaml
+│   │   │   ├── configmap.yaml
+│   │   │   └── secret.yaml
+│   │   ├── rabbitmq/                             # RabbitMQ para fila de treinamento
+│   │   │   ├── statefulset.yaml
+│   │   │   ├── service.yaml
+│   │   │   ├── headless-service.yaml
+│   │   │   ├── configmap.yaml                    # Topology definitions
+│   │   │   ├── conf-configmap.yaml               # rabbitmq.conf
+│   │   │   ├── plugins-configmap.yaml            # enabled_plugins
+│   │   │   ├── secret.yaml
+│   │   │   ├── rbac.yaml
+│   │   │   └── servicemonitor.yaml
+│   │   ├── training-api/                         # FastAPI para submeter jobs de treino
+│   │   │   ├── deployment.yaml
+│   │   │   ├── service.yaml
+│   │   │   ├── configmap.yaml
+│   │   │   └── secret.yaml
+│   │   ├── training-worker/                      # Worker que consome fila e treina modelos
+│   │   │   ├── deployment.yaml
+│   │   │   ├── hpa.yaml
+│   │   │   ├── configmap.yaml
+│   │   │   └── secret.yaml
+│   │   ├── ray-serve/                            # Ray Serve para inferência
+│   │   │   ├── ray-service.yaml                  # RayService CRD (KubeRay)
+│   │   │   ├── service.yaml
+│   │   │   ├── configmap.yaml
+│   │   │   ├── secret.yaml
+│   │   │   └── podmonitor.yaml
+│   │   └── istio/                                # Service Mesh config
+│   │       ├── gateway.yaml
+│   │       ├── virtual-service.yaml
+│   │       ├── destination-rule.yaml
+│   │       ├── peer-authentication.yaml
+│   │       ├── request-authentication.yaml
+│   │       └── authorization-policy.yaml
 │   │
 │   ├── overlays/
-│   │   └── minikube/                             # Overlay para desenvolvimento local
-│   │       ├── kustomization.yaml                # Aplica patches e customizações específicas do ambiente Minikube
-│   │       ├── namespace-patch.yaml              # Patch que sobrescreve/ajusta o namespace para uso no Minikube
-│   │       ├── postgres-mlflow-statefulset-patch.yaml  # Patch do StatefulSet do Postgres (recursos reduzidos)
-│   │       ├── postgres-mlflow-pvc-patch.yaml    # Patch do PVC do Postgres (storage reduzido)
-│   │       ├── minio-mlflow-deployment-patch.yaml # Patch do Deployment do MinIO (recursos reduzidos)
-│   │       ├── minio-mlflow-pvc-patch.yaml       # Patch do PVC do MinIO (storage reduzido)
-│   │       ├── ray-serve-app-configmap-patch.yaml 
-│   │       └── ray-service-patch.yaml            # Patch do RayService (recursos reduzidos, replicas ajustadas)
+│   │   └── minikube/                             # Customizações para Minikube
+│   │       ├── kustomization.yaml
+│   │       ├── namespace-patch.yaml
+│   │       ├── postgres-mlflow-statefulset-patch.yaml
+│   │       ├── postgres-mlflow-pvc-patch.yaml
+│   │       ├── minio-mlflow-deployment-patch.yaml
+│   │       ├── minio-mlflow-pvc-patch.yaml
+│   │       ├── rabbitmq-statefulset-patch.yaml
+│   │       ├── training-api-deployment-patch.yaml
+│   │       └── ray-service-patch.yaml
 │   │
-│   └── argocd/                                   # Configurações do ArgoCD
-│       ├── kustomization.yaml                    # Agrega e organiza os manifestos de ArgoCD
-│       ├── project.yaml                          # ArgoCD Project que define escopo e permissões dos apps
-│       └── app-minikube.yaml                     # Aplicação ArgoCD apontando para o overlay de Minikube
+│   └── argocd/                                   # Configuração do ArgoCD
+│       ├── kustomization.yaml
+│       ├── project.yaml                          # AppProject com RBAC
+│       └── app-minikube.yaml                     # Application apontando para overlay
+│
+├── docs/                                         # Documentação técnica detalhada
+│   ├── 00-domain-context.md                     # Contexto de negócio e sensores
+│   ├── 01-requirements.md                        # Requisitos funcionais/não-funcionais
+│   ├── 02-capacity-estimation.md                 # Cálculos de escala e throughput
+│   ├── 03-api-design.md                          # Contratos de API REST
+│   └── 04-high-level-design.md                   # Arquitetura detalhada
+│
+├── scripts/                                      # Scripts de automação
+│   ├── 0-install-dependencies.sh                 # Instala tools (kubectl, helm, etc)
+│   └── 1-config-cluster.sh                       # Setup completo do cluster
+│
+├── load_tests/                                   # Testes de performance
+│   └── locustfile.py                             # Cenários de carga com Locust
+│
+├── README.md                                     # Este arquivo (overview)
+├── INSTALL.md                                    # Guia passo-a-passo de instalação
+└── TROUBLESHOOTING.md                            # Solução de problemas comuns
 ```
 
 ## 16. Monitoramento e Observabilidade
