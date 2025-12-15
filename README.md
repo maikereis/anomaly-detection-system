@@ -346,7 +346,7 @@ kubectl label secret repo-anomaly-detection-system-ssh \
 
 ```bash
 # Aplica ArgoCD manifestos (cria Project e Application)
-kubectl apply -k manifests/argocd/
+kubectl apply -k manifests/argocd
 
 # Verifica se a aplicação foi criada
 kubectl get application -n argocd

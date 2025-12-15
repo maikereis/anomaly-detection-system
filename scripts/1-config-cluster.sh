@@ -11,7 +11,7 @@
 # Platform:    Linux | macOS
 # 
 # Author:      Maike
-# Version:     1.0.0
+# Version:     1.0.1
 # License:     MIT
 #==============================================================================
 
@@ -112,36 +112,6 @@ wait_for_deployment() {
     fi
 }
 
-wait_for_pods() {
-    local namespace=$1
-    local label=$2
-    local timeout=${3:-$DEFAULT_TIMEOUT}
-    
-    log_step "Waiting for pods with label $label in namespace $namespace..."
-    
-    local end_time=$((SECONDS + timeout))
-    while [ $SECONDS -lt $end_time ]; do
-        local ready_pods
-        ready_pods=$(kubectl get pods -n "$namespace" -l "$label" \
-            -o jsonpath='{.items[*].status.conditions[?(@.type=="Ready")].status}' 2>/dev/null || echo "")
-        
-        if [[ "$ready_pods" == *"False"* ]] || [[ -z "$ready_pods" ]]; then
-            sleep 5
-            continue
-        fi
-        
-        if [[ "$ready_pods" =~ ^(True[[:space:]])*True$ ]]; then
-            log_success "All pods are ready"
-            return 0
-        fi
-        
-        sleep 5
-    done
-    
-    log_error "Timeout waiting for pods to be ready"
-    return 1
-}
-
 helm_repo_add() {
     local name=$1
     local url=$2
@@ -239,126 +209,6 @@ start_minikube() {
     kubectl get nodes | tee -a "$LOG_FILE"
     
     log_success "Minikube cluster is operational"
-}
-
-#------------------------------------------------------------------------------
-# Istio Installation
-#------------------------------------------------------------------------------
-install_istio() {
-    log_section "Istio Service Mesh Installation"
-    
-    # Add Helm repository
-    helm_repo_add "istio" "$ISTIO_REPO"
-    helm repo update 2>&1 | tee -a "$LOG_FILE"
-    
-    # Check and install/upgrade Istio base
-    log_step "Checking Istio base installation..."
-    if helm list -n istio-system 2>/dev/null | grep -q "istio-base"; then
-        log_warning "Istio base already exists. Upgrading to version $ISTIO_VERSION..."
-        if helm upgrade istio-base istio/base \
-            -n istio-system \
-            --version "$ISTIO_VERSION" \
-            --timeout 3m 2>&1 | tee -a "$LOG_FILE"; then
-            log_success "Istio base upgraded"
-        else
-            log_error "Failed to upgrade Istio base"
-            return 1
-        fi
-    else
-        log_step "Installing Istio base components..."
-        if helm install istio-base istio/base \
-            -n istio-system \
-            --create-namespace \
-            --version "$ISTIO_VERSION" 2>&1 | tee -a "$LOG_FILE"; then
-            log_success "Istio base installed"
-        else
-            log_error "Failed to install Istio base"
-            return 1
-        fi
-    fi
-    
-    # Check and install/upgrade Istiod
-    log_step "Checking Istiod installation..."
-    if helm list -n istio-system 2>/dev/null | grep -q "istiod"; then
-        log_warning "Istiod already exists. Upgrading to version $ISTIO_VERSION..."
-        if helm upgrade istiod istio/istiod \
-            -n istio-system \
-            --version "$ISTIO_VERSION" \
-            --timeout 5m \
-            --wait 2>&1 | tee -a "$LOG_FILE"; then
-            log_success "Istiod upgraded"
-        else
-            log_error "Failed to upgrade Istiod"
-            return 1
-        fi
-    else
-        log_step "Installing Istiod control plane..."
-        if helm install istiod istio/istiod \
-            -n istio-system \
-            --version "$ISTIO_VERSION" \
-            --timeout 5m \
-            --wait 2>&1 | tee -a "$LOG_FILE"; then
-            log_success "Istiod installed"
-        else
-            log_error "Failed to install Istiod"
-            return 1
-        fi
-    fi
-    
-    # Check and install/upgrade Ingress Gateway
-    log_step "Checking Istio Ingress Gateway installation..."
-    if helm list -n istio-system 2>/dev/null | grep -q "istio-ingress"; then
-        log_warning "Istio Ingress Gateway already exists. Upgrading to version $ISTIO_VERSION..."
-        
-        # Upgrade without --wait to avoid hanging on pod restarts
-        if helm upgrade istio-ingress istio/gateway \
-            -n istio-system \
-            --version "$ISTIO_VERSION" \
-            --timeout 5m 2>&1 | tee -a "$LOG_FILE"; then
-            log_success "Istio Ingress Gateway upgrade initiated"
-            
-            # Manual wait with better feedback
-            log_step "Waiting for gateway pods to be ready..."
-            sleep 10
-            for i in {1..30}; do
-                if kubectl get pods -n istio-system -l app=istio-ingress -o jsonpath='{.items[*].status.conditions[?(@.type=="Ready")].status}' 2>/dev/null | grep -q "True"; then
-                    log_success "Gateway is ready"
-                    break
-                fi
-                echo -n "."
-                sleep 2
-            done
-            echo ""
-        else
-            log_warning "Upgrade command completed with warnings, checking gateway status..."
-            if kubectl get deployment -n istio-system -l app=istio-ingress >/dev/null 2>&1; then
-                log_success "Gateway deployment exists and is functional"
-            else
-                log_error "Failed to upgrade Istio Ingress Gateway"
-                return 1
-            fi
-        fi
-    else
-        log_step "Installing Istio Ingress Gateway..."
-        if helm install istio-ingress istio/gateway \
-            -n istio-system \
-            --version "$ISTIO_VERSION" \
-            --timeout 5m \
-            --wait 2>&1 | tee -a "$LOG_FILE"; then
-            log_success "Istio Ingress Gateway installed"
-        else
-            log_error "Failed to install Istio Ingress Gateway"
-            return 1
-        fi
-    fi
-    
-    # Verify installation
-    log_step "Verifying Istio installation..."
-    kubectl get pods -n istio-system | tee -a "$LOG_FILE"
-    
-    wait_for_deployment "istiod" "istio-system"
-    
-    log_success "Istio Service Mesh installed successfully"
 }
 
 #------------------------------------------------------------------------------
@@ -564,6 +414,80 @@ install_argocd() {
 }
 
 #------------------------------------------------------------------------------
+# Istio Installation (Simplified - Last to avoid resource conflicts)
+#------------------------------------------------------------------------------
+install_istio() {
+    log_section "Istio Service Mesh Installation"
+    
+    # Add Helm repository
+    helm_repo_add "istio" "$ISTIO_REPO"
+    helm repo update 2>&1 | tee -a "$LOG_FILE"
+    
+    # Install Istio base
+    log_step "Installing Istio base components..."
+    if ! helm list -n istio-system 2>/dev/null | grep -q "istio-base"; then
+        if helm install istio-base istio/base \
+            -n istio-system \
+            --create-namespace \
+            --version "$ISTIO_VERSION" 2>&1 | tee -a "$LOG_FILE"; then
+            log_success "Istio base installed"
+        else
+            log_warning "Istio base install had warnings, continuing..."
+        fi
+    else
+        log_info "Istio base already exists, skipping"
+    fi
+    
+    # Install Istiod
+    log_step "Installing Istiod control plane..."
+    if ! helm list -n istio-system 2>/dev/null | grep -q "istiod"; then
+        if helm install istiod istio/istiod \
+            -n istio-system \
+            --version "$ISTIO_VERSION" \
+            --timeout 5m 2>&1 | tee -a "$LOG_FILE"; then
+            log_success "Istiod install initiated"
+        else
+            log_warning "Istiod install had warnings, continuing..."
+        fi
+        
+        # Simple wait for istiod
+        log_step "Waiting for Istiod (max 3 min)..."
+        sleep 15
+        kubectl wait --for=condition=available deployment/istiod \
+            -n istio-system --timeout=180s 2>&1 | tee -a "$LOG_FILE" || {
+            log_warning "Istiod not fully ready yet, but continuing"
+        }
+    else
+        log_info "Istiod already exists, skipping"
+    fi
+    
+    # Install Gateway without blocking
+    log_step "Installing Istio Ingress Gateway..."
+    if ! helm list -n istio-system 2>/dev/null | grep -q "istio-ingress"; then
+        if helm install istio-ingress istio/gateway \
+            -n istio-system \
+            --version "$ISTIO_VERSION" \
+            --timeout 3m 2>&1 | tee -a "$LOG_FILE"; then
+            log_success "Gateway install initiated"
+        else
+            log_warning "Gateway install had warnings, continuing..."
+        fi
+        
+        # Brief pause, don't block
+        log_info "Gateway deploying in background (may take a few minutes)..."
+        sleep 5
+    else
+        log_info "Gateway already exists, skipping"
+    fi
+    
+    # Quick verification
+    log_step "Istio components status:"
+    kubectl get pods -n istio-system | tee -a "$LOG_FILE"
+    
+    log_success "Istio installation initiated (pods may still be starting)"
+}
+
+#------------------------------------------------------------------------------
 # Post-Installation Configuration
 #------------------------------------------------------------------------------
 post_install_config() {
@@ -610,9 +534,13 @@ echo "✓ Ray-serve: http://localhost:8265"
 kubectl port-forward -n ml-dev svc/mlflow-server 5000:5000 > /dev/null 2>&1 &
 echo "✓ Mlflow: http://localhost:5000"
 
-# Anomaly Detector (8000 -> 8000)
+# Inference API (8000 -> 8000)
 kubectl port-forward -n ml-dev svc/anomaly-detector-serve-svc 8000:8000 > /dev/null 2>&1 &
-echo "✓ Anomaly Detector: http://localhost:8000"
+echo "✓ Inference API: http://localhost:8000"
+
+# Training API (8030 -> 8030)
+kubectl port-forward -n ml-dev svc/training-api 8030:8030 --address 0.0.0.0 > /dev/null 2>&1 &
+echo "✓ Training API: http://localhost:8030"
 
 # RabbitMQ (15672 -> 15672)
 kubectl port-forward -n ml-dev svc/rabbitmq 15672:15672 > /dev/null 2>&1 &
@@ -651,51 +579,104 @@ print_summary() {
     log_section "Installation Summary"
     
     echo ""
-    echo -e "${GREEN}╔═══════════════════════════════════════════════════════╗${NC}"
-    echo -e "${GREEN}║                                                       ║${NC}"
-    echo -e "${GREEN}║     ML System Environment Setup Complete! 🚀         ║${NC}"
-    echo -e "${GREEN}║                                                       ║${NC}"
-    echo -e "${GREEN}╚═══════════════════════════════════════════════════════╝${NC}"
+    echo -e "${GREEN}╔════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${GREEN}║                                                        ║${NC}"
+    echo -e "${GREEN}║     ML System Environment Setup Complete!              ║${NC}"
+    echo -e "${GREEN}║                                                        ║${NC}"
+    echo -e "${GREEN}╚════════════════════════════════════════════════════════╝${NC}"
     echo ""
     
     echo -e "${CYAN}Installed Components:${NC}"
     echo ""
-    printf "  ${GREEN}✓${NC} %-20s %s\n" "Minikube" "Kubernetes cluster running"
-    printf "  ${GREEN}✓${NC} %-20s %s\n" "Istio ${ISTIO_VERSION}" "Service mesh for traffic management"
-    printf "  ${GREEN}✓${NC} %-20s %s\n" "Cert-Manager" "TLS certificate management"
-    printf "  ${GREEN}✓${NC} %-20s %s\n" "KubeRay" "Distributed computing framework"
-    printf "  ${GREEN}✓${NC} %-20s %s\n" "Prometheus" "Monitoring and alerting"
-    printf "  ${GREEN}✓${NC} %-20s %s\n" "Grafana" "Metrics visualization"
-    printf "  ${GREEN}✓${NC} %-20s %s\n" "ArgoCD" "GitOps continuous delivery"
+    echo -e "  ${GREEN}✓${NC} %-20s %s\n" "Minikube" "Kubernetes cluster running"
+    echo -e "  ${GREEN}✓${NC} %-20s %s\n" "Cert-Manager" "TLS certificate management"
+    echo -e "  ${GREEN}✓${NC} %-20s %s\n" "KubeRay" "Distributed computing framework"
+    echo -e "  ${GREEN}✓${NC} %-20s %s\n" "Prometheus" "Monitoring and alerting"
+    echo -e "  ${GREEN}✓${NC} %-20s %s\n" "Grafana" "Metrics visualization"
+    echo -e "  ${GREEN}✓${NC} %-20s %s\n" "ArgoCD" "GitOps continuous delivery"
+    echo -e "  ${GREEN}✓${NC} %-20s %s\n" "Istio ${ISTIO_VERSION}" "Service mesh (may still be starting)"
+    echo ""
+    
+    echo -e "${YELLOW}⚠ Note: Istio pods may take 2-3 minutes to fully start${NC}"
+    echo -e "${YELLOW}  Check status: kubectl get pods -n istio-system${NC}"
     echo ""
     
     echo -e "${YELLOW}Next Steps:${NC}"
     echo ""
-    echo "  1. Configure Git repository for GitOps:"
-    echo "     ${CYAN}# Fork/clone the repository${NC}"
-    echo "     ${CYAN}# Update manifests/argocd/app-minikube.yaml with your repo URL${NC}"
+    echo -e "${CYAN}1. Fork/Clone Repository:${NC}"
+    echo "   git clone https://github.com/<YOUR_USERNAME>/anomaly-detection-system.git"
+    echo "   cd anomaly-detection-system"
     echo ""
-    echo "  2. Generate SSH keys for ArgoCD:"
-    echo "     ${CYAN}ssh-keygen -t ed25519 -C \"argocd@minikube\" -f ~/.ssh/argocd_rsa -N \"\"${NC}"
-    echo "     ${CYAN}# Add the public key as a deploy key in GitHub${NC}"
+    
+    echo -e "${CYAN}2. Configure GHCR Secret (for private images):${NC}"
+    echo "   kubectl create secret docker-registry ghcr-secret \\"
+    echo "     --namespace=ml-dev \\"
+    echo "     --docker-server=ghcr.io \\"
+    echo "     --docker-username=<YOUR_USERNAME> \\"
+    echo "     --docker-password=<GITHUB_PAT> \\"
+    echo "     --docker-email=<YOUR_EMAIL>"
     echo ""
-    echo "  3. Register SSH key as Kubernetes Secret:"
-    echo "     ${CYAN}kubectl create secret generic repo-anomaly-detection-system-ssh \\${NC}"
-    echo "     ${CYAN}  -n argocd \\${NC}"
-    echo "     ${CYAN}  --from-literal=type=git \\${NC}"
-    echo "     ${CYAN}  --from-literal=url=git@github.com:<YOUR_USERNAME>/anomaly-detection-system.git \\${NC}"
-    echo "     ${CYAN}  --from-file=sshPrivateKey=\$HOME/.ssh/argocd_rsa${NC}"
+    
+    echo -e "${CYAN}3. Update Configuration Files:${NC}"
+    echo -e "   ${MAGENTA}a)${NC} manifests/argocd/app-minikube.yaml:"
+    echo "      - Update repoURL with your fork URL"
+    echo "      - Update contact info"
     echo ""
-    echo "  4. Deploy the ML system:"
-    echo "     ${CYAN}kubectl apply -k manifests/argocd/${NC}"
+    echo -e "   ${MAGENTA}b)${NC} manifests/overlays/minikube/kustomization.yaml:"
+    echo "      - Update commonAnnotations (contact, documentation)"
     echo ""
-    echo "  5. Access services:"
-    echo "     ${CYAN}./scripts/start-port-forwards.sh${NC}  # Start all port-forwards"
-    echo "     ${CYAN}./scripts/stop-port-forwards.sh${NC}   # Stop all port-forwards"
+    echo -e "   ${MAGENTA}c)${NC} manifests/base/ray-serve/ray-service.yaml:"
+    echo "      - Update image: ghcr.io/<YOUR_USERNAME>/ray-serve-anomaly-detector:latest"
     echo ""
-    echo "     Or manually:"
-    echo "     ${CYAN}kubectl port-forward svc/argocd-server -n argocd 8080:443${NC}"
-    echo "     ${CYAN}kubectl port-forward -n monitoring svc/prometheus-operator-grafana 3000:80${NC}"
+    echo -e "   ${MAGENTA}d)${NC} manifests/overlays/minikube/ray-service-patch.yaml:"
+    echo "      - Update image references"
+    echo ""
+    
+    echo -e "${CYAN}4. Generate SSH Keys for ArgoCD:${NC}"
+    echo "   ssh-keygen -t ed25519 -C \"argocd@minikube\" -f ~/.ssh/argocd_rsa -N \"\""
+    echo "   cat ~/.ssh/argocd_rsa.pub  # Copy this key"
+    echo ""
+    echo -e "   ${MAGENTA}→${NC} Add as deploy key: https://github.com/<YOUR_USERNAME>/anomaly-detection-system/settings/keys/new"
+    echo ""
+    
+    echo -e "${CYAN}5. Register SSH Key in Kubernetes:${NC}"
+    echo "   kubectl create secret generic repo-anomaly-detection-system-ssh \\"
+    echo "     -n argocd \\"
+    echo "     --from-literal=type=git \\"
+    echo "     --from-literal=url=git@github.com:<YOUR_USERNAME>/anomaly-detection-system.git \\"
+    echo "     --from-file=sshPrivateKey=\${HOME}/.ssh/argocd_rsa"
+    echo ""
+    echo "   kubectl label secret repo-anomaly-detection-system-ssh \\"
+    echo "     -n argocd argocd.argoproj.io/secret-type=repository"
+    echo ""
+    
+    echo -e "${CYAN}6. Deploy ML System via ArgoCD:${NC}"
+    echo "   kubectl apply -k manifests/argocd/"
+    echo ""
+    echo -e "   ${MAGENTA}→${NC} Sync via UI: https://localhost:8080"
+    echo -e "   ${MAGENTA}→${NC} Or CLI: argocd app sync ml-system-minikube"
+    echo ""
+    
+    echo -e "${CYAN}7. Verify Deployment:${NC}"
+    echo "   kubectl get all -n ml-dev"
+    echo "   kubectl get rayservice -n ml-dev"
+    echo "   kubectl get pods -n ml-dev -w"
+    echo ""
+    
+    echo -e "${CYAN}8. Access Services:${NC}"
+    echo -e "   ${GREEN}./scripts/start-port-forwards.sh${NC}  ${BLUE}# Start all port-forwards${NC}"
+    echo ""
+    echo "   Available endpoints:"
+    echo "   • ArgoCD:           https://localhost:8080"
+    echo "   • Grafana:          http://localhost:3000"
+    echo "   • Prometheus:       http://localhost:9090"
+    echo "   • MLflow:           http://localhost:5000"
+    echo "   • MinIO:            http://localhost:9001"
+    echo "   • Ray Dashboard:    http://localhost:8265"
+    echo "   • Inference API:    http://localhost:8000"
+    echo "   • Training API:     http://localhost:8030"
+    echo "   • RabbitMQ:         http://localhost:15672"
+    echo ""
     
     echo -e "${BLUE}Documentation & Credentials:${NC}"
     echo "  • Installation log: ${LOG_FILE}"
@@ -704,10 +685,11 @@ print_summary() {
     echo ""
     
     echo -e "${MAGENTA}Quick Commands:${NC}"
-    echo "  • Cluster status:  ${CYAN}minikube status${NC}"
-    echo "  • View pods:       ${CYAN}kubectl get pods -A${NC}"
-    echo "  • Stop cluster:    ${CYAN}minikube stop${NC}"
-    echo "  • Delete cluster:  ${CYAN}minikube delete${NC}"
+    echo -e "  • Cluster status:  ${CYAN}minikube status${NC}"
+    echo -e "  • View all pods:   ${CYAN}kubectl get pods -A${NC}"
+    echo -e "  • Istio status:    ${CYAN}kubectl get pods -n istio-system${NC}"
+    echo -e "  • Stop cluster:    ${CYAN}minikube stop${NC}"
+    echo -e "  • Delete cluster:  ${CYAN}minikube delete${NC}"
     echo ""
 }
 
@@ -747,11 +729,11 @@ main() {
     cat << 'EOF'
 ╔═══════════════════════════════════════════════════════════════╗
 ║                                                               ║
-║     ML System - Automated Minikube Environment Setup         ║
+║     ML System - Automated Minikube Environment Setup          ║
 ║                                                               ║
-║     Infrastructure: Minikube + Istio + ArgoCD                ║
+║     Infrastructure: Minikube + Istio + ArgoCD                 ║
 ║     Observability:  Prometheus + Grafana                      ║
-║     ML Platform:    KubeRay + MLflow                          ║
+║     ML Platform:    KubeRay + MLflow + RabbitMQ               ║
 ║                                                               ║
 ╚═══════════════════════════════════════════════════════════════╝
 EOF
@@ -770,11 +752,11 @@ EOF
     # Execute setup pipeline
     preflight_checks
     start_minikube
-    install_istio
     install_cert_manager
     install_kuberay
     install_prometheus
     install_argocd
+    install_istio
     post_install_config
     print_summary
     
