@@ -1,0 +1,218 @@
+apiVersion: ray.io/v1
+kind: RayService
+metadata:
+  name: anomaly-detector
+spec:
+  # Service health monitoring
+  serviceUnhealthySecondThreshold: 900 # 15 min
+  deploymentUnhealthySecondThreshold: 300 # 5 min
+
+  # Ray Serve configuration
+  serveConfigV2: |
+    applications:
+      - name: anomaly_detector
+        import_path: src.production:app
+        
+        deployments:
+          - name: AnomalyDetector
+            num_replicas: 2
+            max_concurrent_queries: 10
+            ray_actor_options:
+              num_cpus: 0.3
+              memory: 268435456
+
+  # Ray Cluster configuration
+  rayClusterConfig:
+    # ===== RAY HEAD NODE =====
+    headGroupSpec:
+      rayStartParams:
+        dashboard-host: "0.0.0.0"
+        dashboard-port: "8265"
+        metrics-export-port: "8080"
+        num-cpus: "0"
+
+      template:
+        metadata:
+          labels:
+            app: ray-cluster
+            component: head
+            ray.io/cluster: anomaly-detector
+
+        spec:
+          imagePullSecrets:
+            - name: ghcr-secret
+          containers:
+            - name: ray-head
+              image: ghcr.io/maikereis/ray-serve-anomaly-detector:latest # for development
+              imagePullPolicy: IfNotPresent
+
+              ports:
+                - containerPort: 6379
+                  name: gcs
+                  protocol: TCP
+                - containerPort: 8265
+                  name: dashboard
+                  protocol: TCP
+                - containerPort: 8080
+                  name: metrics
+                  protocol: TCP
+                - containerPort: 10001
+                  name: client
+                  protocol: TCP
+                - containerPort: 8000
+                  name: serve
+                  protocol: TCP
+
+              envFrom:
+                - configMapRef:
+                    name: ray-serve-config
+                - secretRef:
+                    name: ray-serve-secret
+
+              env:
+                - name: RAY_GRAFANA_HOST
+                  value: "http://prometheus-grafana.monitoring.svc:80"
+                - name: RAY_PROMETHEUS_HOST
+                  value: "http://prometheus-kube-prometheus-prometheus.monitoring.svc:9090"
+
+              volumeMounts:
+                - name: ray-logs
+                  mountPath: /tmp/ray
+                - name: shared-mem
+                  mountPath: /dev/shm
+
+              resources:
+                requests:
+                  cpu: "500m"
+                  memory: "1Gi"
+                limits:
+                  cpu: "1"
+                  memory: "2Gi"
+
+              livenessProbe:
+                exec:
+                  command:
+                    - bash
+                    - -c
+                    - curl -f -s http://localhost:52365/api/local_raylet_healthz | grep success
+                initialDelaySeconds: 60
+                periodSeconds: 10
+                timeoutSeconds: 5
+                failureThreshold: 3
+
+              readinessProbe:
+                exec:
+                  command:
+                    - bash
+                    - -c
+                    - curl -f -s http://localhost:52365/api/local_raylet_healthz | grep success
+                initialDelaySeconds: 30
+                periodSeconds: 10
+                timeoutSeconds: 5
+                failureThreshold: 3
+
+              lifecycle:
+                preStop:
+                  exec:
+                    command: ["/bin/sh", "-c", "ray stop"]
+
+          volumes:
+            - name: ray-logs
+              emptyDir: {}
+            - name: shared-mem
+              emptyDir:
+                medium: Memory
+                sizeLimit: 2Gi
+
+    # ===== RAY WORKER NODES =====
+    workerGroupSpecs:
+      - replicas: 2
+        minReplicas: 1
+        maxReplicas: 5
+        groupName: worker-group
+
+        rayStartParams:
+          num-cpus: "1"
+
+        template:
+          metadata:
+            labels:
+              app: ray-cluster
+              component: worker
+              ray.io/cluster: anomaly-detector
+              ray.io/group: worker-group
+
+          spec:
+            imagePullSecrets:
+              - name: ghcr-secret
+            initContainers:
+              - name: wait-for-head
+                image: busybox:1.37.0
+                command:
+                  - sh
+                  - -c
+                  - |
+                    until nc -z anomaly-detector-head-svc 6379; do
+                      echo "Waiting for Ray head..."
+                      sleep 2
+                    done
+
+            containers:
+              - name: ray-worker
+                image: ghcr.io/maikereis/ray-serve-anomaly-detector:latest # for development
+                imagePullPolicy: IfNotPresent
+
+                envFrom:
+                  - configMapRef:
+                      name: ray-serve-config
+                  - secretRef:
+                      name: ray-serve-secret
+
+                volumeMounts:
+                  - name: ray-logs
+                    mountPath: /tmp/ray
+                  - name: shared-mem
+                    mountPath: /dev/shm
+
+                resources:
+                  requests:
+                    cpu: "500m"
+                    memory: "512Mi"
+                  limits:
+                    cpu: "1"
+                    memory: "1Gi"
+
+                livenessProbe:
+                  exec:
+                    command:
+                      - bash
+                      - -c
+                      - curl -f -s http://localhost:52365/api/local_raylet_healthz | grep success
+                  initialDelaySeconds: 30
+                  periodSeconds: 10
+                  timeoutSeconds: 5
+                  failureThreshold: 3
+
+                readinessProbe:
+                  exec:
+                    command:
+                      - bash
+                      - -c
+                      - curl -f -s http://localhost:52365/api/local_raylet_healthz | grep success
+                  initialDelaySeconds: 10
+                  periodSeconds: 10
+                  timeoutSeconds: 5
+                  failureThreshold: 3
+
+                lifecycle:
+                  preStop:
+                    exec:
+                      command: ["/bin/sh", "-c", "ray stop"]
+
+            volumes:
+              - name: ray-logs
+                emptyDir: {}
+              - name: shared-mem
+                emptyDir:
+                  medium: Memory
+                  sizeLimit: 1Gi

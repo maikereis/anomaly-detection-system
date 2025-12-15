@@ -1,0 +1,18 @@
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: anomaly-detector-external
+spec:
+  hosts:
+    - "*"
+  gateways:
+    - anomaly-detector-gateway
+  http:
+    - match:
+        - uri:
+            prefix: /v2/
+      route:
+        - destination:
+            host: anomaly-detector-predictor-predictor-default
+            port:
+              number: 80

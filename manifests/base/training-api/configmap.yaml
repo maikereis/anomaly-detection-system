@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: training-api-config
+data:
+  RABBITMQ_EXCHANGE: "training-events"
+  MAX_DATA_POINTS: "100000"

@@ -1,0 +1,25 @@
+apiVersion: networking.istio.io/v1beta1
+kind: Gateway
+metadata:
+  name: anomaly-detector-gateway
+spec:
+  selector:
+    istio: ingressgateway  # Use o Istio ingress gateway padrão
+  servers:
+    - port:
+        number: 80
+        name: http
+        protocol: HTTP
+      hosts:
+        - "anomaly-detector.ml-production.svc.cluster.local"
+        - "*"  # Para desenvolvimento/teste
+    
+    - port:
+        number: 443
+        name: https
+        protocol: HTTPS
+      hosts:
+        - "anomaly-detector.ml-production.svc.cluster.local"
+      tls:
+        mode: SIMPLE
+        credentialName: anomaly-detector-tls  # Secret com certificado TLS

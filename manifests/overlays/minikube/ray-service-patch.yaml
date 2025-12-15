@@ -1,0 +1,179 @@
+apiVersion: ray.io/v1
+kind: RayService
+metadata:
+  name: anomaly-detector
+spec:
+  serviceUnhealthySecondThreshold: 900
+  deploymentUnhealthySecondThreshold: 300
+
+  serveConfigV2: |
+    applications:
+      - name: anomaly_detector
+        import_path: src.production:app
+        
+        deployments:
+          - name: AsyncAnomalyDetector
+            autoscaling_config:
+              min_replicas: 8
+              max_replicas: 12
+              target_ongoing_requests: 50
+              max_ongoing_requests: 100
+              upscale_delay_s: 2.0
+              downscale_delay_s: 300.0
+              upscaling_factor: 2
+            
+            ray_actor_options:
+              num_cpus: 0.5
+              memory: 536870912  # 512MB
+
+  rayClusterConfig:
+    headGroupSpec:
+      rayStartParams:
+        dashboard-host: "0.0.0.0"
+        dashboard-port: "8265"
+        metrics-export-port: "8080"
+        num-cpus: "0"
+        #object-store-memory: "536870912" # 512MB
+
+      template:
+        spec:
+          imagePullSecrets:
+            - name: ghcr-secret
+          containers:
+            - name: ray-head
+              image: ghcr.io/maikereis/ray-serve-anomaly-detector:latest
+
+              ports:
+                - containerPort: 6379
+                  name: gcs
+                - containerPort: 8265
+                  name: dashboard
+                - containerPort: 8080
+                  name: metrics
+                - containerPort: 10001
+                  name: client
+                - containerPort: 8000
+                  name: serve
+
+              envFrom:
+                - configMapRef:
+                    name: ray-serve-config
+                - secretRef:
+                    name: ray-serve-secret
+
+              env:
+                - name: RAY_GRAFANA_HOST
+                  value: "http://prometheus-grafana.monitoring.svc:80"
+                - name: RAY_PROMETHEUS_HOST
+                  value: "http://prometheus-kube-prometheus-prometheus.monitoring.svc:9090"
+                # Cache config overrides
+                - name: MODEL_CACHE_SIZE
+                  value: "50"
+                - name: MODEL_CACHE_TTL
+                  value: "7200"
+
+              volumeMounts:
+                - name: ray-logs
+                  mountPath: /tmp/ray
+
+              resources:
+                requests:
+                  cpu: "500m"
+                  memory: "1Gi"
+                limits:
+                  cpu: "1000m"
+                  memory: "2Gi"
+
+              livenessProbe:
+                exec:
+                  command:
+                    - bash
+                    - -c
+                    - curl -f -s http://localhost:52365/api/local_raylet_healthz | grep success
+                initialDelaySeconds: 60
+                periodSeconds: 10
+                timeoutSeconds: 5
+                failureThreshold: 3
+
+              readinessProbe:
+                exec:
+                  command:
+                    - bash
+                    - -c
+                    - curl -f -s http://localhost:52365/api/local_raylet_healthz | grep success
+                initialDelaySeconds: 30
+                periodSeconds: 10
+                timeoutSeconds: 5
+                failureThreshold: 3
+
+          volumes:
+            - name: ray-logs
+              emptyDir: {}
+
+    workerGroupSpecs:
+      - replicas: 1
+        minReplicas: 1
+        maxReplicas: 1
+        groupName: worker-group
+
+        rayStartParams:
+          num-cpus: "4"
+          #object-store-memory: "2147483648" # 2GB
+
+        template:
+          spec:
+            imagePullSecrets:
+              - name: ghcr-secret
+            containers:
+              - name: ray-worker
+                image: ghcr.io/maikereis/ray-serve-anomaly-detector:latest # for development
+
+                envFrom:
+                  - configMapRef:
+                      name: ray-serve-config
+                  - secretRef:
+                      name: ray-serve-secret
+
+                env:
+                  - name: MODEL_CACHE_SIZE
+                    value: "50"
+                  - name: MODEL_CACHE_TTL
+                    value: "7200"
+
+                volumeMounts:
+                  - name: ray-logs
+                    mountPath: /tmp/ray
+
+                resources:
+                  requests:
+                    cpu: "3500m"
+                    memory: "4Gi"
+                  limits:
+                    cpu: "4000m"
+                    memory: "6Gi"
+
+                livenessProbe:
+                  exec:
+                    command:
+                      - bash
+                      - -c
+                      - curl -f -s http://localhost:52365/api/local_raylet_healthz | grep success
+                  initialDelaySeconds: 30
+                  periodSeconds: 10
+                  timeoutSeconds: 5
+                  failureThreshold: 3
+
+                readinessProbe:
+                  exec:
+                    command:
+                      - bash
+                      - -c
+                      - curl -f -s http://localhost:52365/api/local_raylet_healthz | grep success
+                  initialDelaySeconds: 10
+                  periodSeconds: 10
+                  timeoutSeconds: 5
+                  failureThreshold: 3
+
+            volumes:
+              - name: ray-logs
+                emptyDir: {}

@@ -1,0 +1,40 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: ray-pods
+  labels:
+    app: ray-cluster
+    component: inference
+spec:
+  selector:
+    matchLabels:
+      ray.io/is-ray-node: "yes"
+
+  namespaceSelector:
+    matchNames:
+      - ml-dev
+
+  podMetricsEndpoints:
+    - targetPort: 8080
+      path: /metrics
+      interval: 30s
+      scrapeTimeout: 10s
+      relabelings:
+        # Identificar o pod
+        - sourceLabels: [__meta_kubernetes_pod_name]
+          targetLabel: pod
+        # Namespace
+        - sourceLabels: [__meta_kubernetes_namespace]
+          targetLabel: namespace
+        # Tipo do nó (head ou worker)
+        - sourceLabels: [__meta_kubernetes_pod_label_ray_io_node_type]
+          targetLabel: ray_node_type
+        # Nome do cluster Ray
+        - sourceLabels: [__meta_kubernetes_pod_label_ray_io_cluster]
+          targetLabel: ray_cluster
+        # Grupo (headgroup ou worker-group)
+        - sourceLabels: [__meta_kubernetes_pod_label_ray_io_group]
+          targetLabel: ray_group
+        # IP do pod
+        - sourceLabels: [__meta_kubernetes_pod_ip]
+          targetLabel: pod_ip

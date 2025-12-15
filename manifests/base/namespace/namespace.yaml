@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ml-dev
+  labels:
+    name: ml-dev
+    environment: development

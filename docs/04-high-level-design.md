@@ -50,32 +50,43 @@ O sistema é projetado para processar **285.000 séries temporais simultâneas**
     │  GET /plot         │           │                  │
     └─────────┬──────────┘           └────────┬─────────┘
               │                               │
-    ┌─────────▼──────────┐                    │
-    │  RabbitMQ Queue    │                    │
-    │  (Training Jobs)   │                    │
-    └─────────┬──────────┘                    │
-              │                               │
-    ┌─────────▼──────────┐           ┌────────▼─────────┐
-    │  Training Workers  │           │  Predictor Pods  │
-    │  (Celery/Custom)   │           │  (HPA: 3-50)     │
-    │                    │           │                  │
-    │  - Load job        │           │  - LRU Cache     │
-    │  - Validate data   │           │  - Warm Loading  │
-    │  - Train model     │           │  - Fallback      │
-    │  - Save to MLflow  │           │                  │
-    └─────────┬──────────┘           └────────┬─────────┘
-              │                               │
-              │         ┌─────────────────────┘
-              │         │
-    ┌─────────▼─────────▼──────────────────────────────┐
-    │           MLflow Tracking Server                 │
-    │  (Model Registry + Experiment Tracking)          │
-    │                                                  │
-    │  - Register models & versions                    │
-    │  - Track metrics & parameters                    │
-    │  - Manage model stages (None/Staging/Production) │
-    │  - Serve model URIs                              │
-    └─────────┬──────────────┬─────────────────────────┘
+              │     ┌─────────────────┐       │
+              │     │  Airflow        │       │
+              │     │  (Orchestrator) │       │
+              │     │                 │       │
+              │     │  - Weekly       │       │
+              │     │  - Drift detect │       │
+              │     │  - Shadow→Canary│       │
+              │     └────────┬────────┘       │
+              │              │                │
+              └──────┬───────┘                │
+                     │                        │
+    ┌────────────────▼──────────┐             │
+    │  RabbitMQ Queue           │             │
+    │  (Training Jobs)          │             │
+    └────────────┬──────────────┘             │
+                 │                            │
+    ┌────────────▼──────────┐      ┌──────────▼─────────┐
+    │  Training Workers     │      │  Predictor Pods    │
+    │  (Celery/Custom)      │      │  (HPA: 3-50)       │
+    │                       │      │                    │
+    │  - Load job           │      │  - Warm Loading    │
+    │  - Validate data      │      │  - LRU Cache       │
+    │  - Train model        │      │  - Fallback        │
+    │  - Save to MLflow     │      │                    │
+    └────────────┬──────────┘      └──────────┬─────────┘
+                 │                            │
+                 │         ┌──────────────────┘
+                 │         │
+    ┌────────────▼─────────▼──────────────────────────┐
+    │           MLflow Tracking Server                │
+    │  (Model Registry + Experiment Tracking)         │
+    │                                                 │
+    │  - Register models & versions                   │
+    │  - Track metrics & parameters                   │
+    │  - Manage model stages (None/Staging/Production)│
+    │  - Serve model URIs                             │
+    └─────────┬──────────────┬────────────────────────┘
               │              │
     ┌─────────▼──────┐  ┌────▼─────────────────┐
     │  PostgreSQL    │  │  MinIO/S3            │
@@ -175,7 +186,138 @@ GET    /api/v1/plot                                             # Visualização
 
 ---
 
-### 3. Training Workers
+### 3. Airflow (Orchestrator)
+
+**Responsabilidades:**
+- Orquestrar retreinamento periódico semanal de todas as séries
+- Detectar drift e triggar retreinamentos urgentes
+- Gerenciar pipeline shadow → canary → production
+- Coordenar análises batch e relatórios
+
+**DAGs Principais:**
+
+**1. Weekly Retraining DAG**
+```python
+from airflow import DAG
+from airflow.operators.python import PythonOperator
+from datetime import datetime, timedelta
+
+dag = DAG(
+    'weekly_model_retraining',
+    schedule_interval='0 2 * * 0',  # Domingo 2am
+    start_date=datetime(2024, 1, 1),
+    catchup=False
+)
+
+def get_active_series():
+    """Busca séries ativas do catálogo."""
+    # Query database ou MLflow para séries com modelos production
+    return ['sensor_001_radial', 'sensor_002_axial', ...]
+
+def submit_training_job(series_id):
+    """Envia job de treinamento via Training API."""
+    response = requests.post(
+        f"{TRAINING_API}/api/v1/training/{series_id}",
+        json={
+            "config": {
+                "window_hours": 168,  # 7 dias
+                "algorithm": "statistical"
+            }
+        },
+        headers={"Authorization": f"Bearer {API_TOKEN}"}
+    )
+    return response.json()['job_id']
+
+# Tarefa para cada série
+for series_id in get_active_series():
+    train_task = PythonOperator(
+        task_id=f'train_{series_id}',
+        python_callable=submit_training_job,
+        op_kwargs={'series_id': series_id},
+        dag=dag
+    )
+```
+
+**2. Drift Detection DAG**
+```python
+dag = DAG(
+    'drift_detection',
+    schedule_interval='0 */6 * * *',  # A cada 6h
+    start_date=datetime(2024, 1, 1)
+)
+
+def check_drift_for_series(series_id):
+    """Verifica data drift e concept drift."""
+    # Busca métricas via Training API
+    metrics = requests.get(
+        f"{TRAINING_API}/api/v1/models/{series_id}/metrics",
+        params={"window": "24h"}
+    ).json()
+    
+    # Detecta drift
+    if metrics['drift_detection']['data_drift_detected']:
+        # Trigga retreinamento urgente
+        submit_training_job(series_id)
+        send_alert(f"Data drift detected for {series_id}")
+    
+    if metrics['drift_detection']['concept_drift_detected']:
+        send_alert(f"Concept drift detected for {series_id}")
+```
+
+**3. Shadow Deployment DAG**
+```python
+dag = DAG(
+    'shadow_deployment_pipeline',
+    schedule_interval=None,  # Trigger manual ou via webhook
+    start_date=datetime(2024, 1, 1)
+)
+
+def deploy_shadow_cluster(series_id, model_version):
+    """Deploy cluster shadow com champion e challenger."""
+    # Via Kubernetes API ou Helm
+    subprocess.run([
+        'kubectl', 'apply', '-f', 
+        f'shadow-deployment-{series_id}-v{model_version}.yaml'
+    ])
+
+def configure_traffic_mirroring(series_id):
+    """Configura Istio para duplicar tráfego."""
+    # Atualiza VirtualService
+    ...
+
+def analyze_shadow_metrics(series_id, model_version):
+    """Analisa métricas após 48h de shadow."""
+    # Query Prometheus
+    metrics = query_prometheus(...)
+    
+    if metrics['challenger_better_than_champion']:
+        # Aprova para canary
+        requests.post(
+            f"{TRAINING_API}/api/v1/models/{series_id}/versions/{model_version}/promote",
+            json={"strategy": "canary", "canary_config": {...}}
+        )
+    else:
+        # Rejeita
+        send_alert(f"Model v{model_version} failed shadow validation")
+
+deploy = PythonOperator(task_id='deploy_shadow', ...)
+configure = PythonOperator(task_id='configure_mirroring', ...)
+wait = TimeDeltaSensor(task_id='wait_48h', delta=timedelta(hours=48))
+analyze = PythonOperator(task_id='analyze_metrics', ...)
+
+deploy >> configure >> wait >> analyze
+```
+
+**Benefícios do Airflow:**
+- Visualização de pipelines e status no UI
+- Retry automático com backoff exponencial
+- Paralelização de tarefas (treinar múltiplas séries simultaneamente)
+- Alerting integrado via email/Slack
+- Histórico completo de execuções
+
+---
+
+### 4. Training Workers
 
 **Responsabilidades:**
 - Consumir jobs da fila RabbitMQ
@@ -515,81 +657,63 @@ class AnomalyPredictor:
 
 ### Fluxo 1: Treinamento de Modelo
 
+**Dois modos de trigger:**
+
 ```
-┌─────────────┐
-│   Cliente   │
-└──────┬──────┘
-       │ POST /api/v1/training/sensor_001_radial
-       │ {"training_data": {...}, "config": {...}}
-       ▼
-┌─────────────────┐
-│  Training API   │
-│   (FastAPI)     │
-│                 │
-│ 1. Validar:     │
-│    ✓ >=10k pts  │
-│    ✓ Ordem      │
-│    ✓ Std > 0    │
-│ 2. Criar job    │
-│    no Postgres  │
-│ 3. Publicar     │
-│    no RabbitMQ  │
-└──────┬──────────┘
-       │ 202 Accepted
-       │ {"job_id": "abc123", "status": "queued"}
-       ▼
-┌──────────────────┐
-│  Cliente polling │
-│  GET /jobs/abc   │
-└──────────────────┘
-       
-       │ (async)
-       ▼
-┌─────────────────┐
-│   RabbitMQ      │
-│   Queue         │
-└──────┬──────────┘
-       │
-       ▼
-┌─────────────────┐
-│ Training Worker │
-│                 │
-│ 1. Consome job  │
-│ 2. Atualiza     │
-│    status para  │
-│    "processing" │
-│ 3. Treina:      │
-│    mean = μ     │
-│    std = σ      │
-│ 4. Registra no  │
-│    MLflow       │
-│ 5. Transiciona  │
-│    p/ Staging   │
-│ 6. Atualiza     │
-│    status para  │
-│    "completed"  │
-└──────┬──────────┘
-       │
-       ▼
-┌─────────────────┐
-│  MLflow Server  │
-│                 │
-│ ┌─────────────┐ │
-│ │ Postgres:   │ │
-│ │ - Run ID    │ │
-│ │ - Params    │ │
-│ │ - Metrics   │ │
-│ │ - Model v5  │ │
-│ │   (Staging) │ │
-│ └─────────────┘ │
-│                 │
-│ ┌─────────────┐ │
-│ │ S3/MinIO:   │ │
-│ │ - model.pkl │ │
-│ │ - data.csv  │ │
-│ └─────────────┘ │
-└─────────────────┘
+A. Manual (Cliente/API):
+   Cliente → POST /training/{series_id} → Training API → RabbitMQ
+
+B. Orquestrado (Airflow):
+   Airflow DAG (semanal/drift) → POST /training/{series_id} → Training API → RabbitMQ
 ```
+
+**Fluxo Completo:**
+
+```
+┌──────────────┐       ┌────────────────┐
+│  Cliente ou  │  OU   │ Airflow DAG    │
+│  API manual  │       │ (scheduled/    │
+│              │       │  drift trigger)│
+└──────┬───────┘       └──────┬─────────┘
+       │                      │
+       └───────┬──────────────┘
+               │ POST /api/v1/training/sensor_001_radial
+               ▼
+       ┌───────────────┐
+       │ Training API  │
+       │               │
+       │ 1. Valida     │
+       │ 2. Cria job   │
+       │ 3. Enfileira  │
+       └───────┬───────┘
+               │ 202 Accepted {"job_id": "..."}
+               ▼
+       ┌───────────────┐
+       │   RabbitMQ    │
+       └───────┬───────┘
+               │
+               ▼
+       ┌───────────────┐
+       │ Training      │
+       │ Worker        │
+       │               │
+       │ • Treina      │
+       │ • Registra    │
+       │   MLflow      │
+       │ • Staging     │
+       └───────┬───────┘
+               │
+               ▼
+       ┌───────────────┐
+       │ MLflow Server │
+       │ (v5: Staging) │
+       └───────────────┘
+```
+
+**Airflow DAGs:**
+- **Weekly Retraining**: Domingo 2am, 285k séries, submete via Training API
+- **Drift Detection**: A cada 6h, verifica métricas, trigga retreino se drift detectado
+- **Shadow Pipeline**: Orquestra deploy shadow → análise → aprovação/rejeição canary
 
 **Latências típicas:**
 - Validação: ~5ms

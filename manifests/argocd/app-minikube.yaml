@@ -1,0 +1,72 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: ml-system-minikube
+  namespace: argocd
+  # Finalizer garante que recursos são deletados quando app é removido
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  # Referência ao projeto
+  project: ml-system
+  
+  # Source - onde está o código
+  source:
+    repoURL: git@github.com:maikereis/anomaly-detection-system.git
+    targetRevision: services
+    path: manifests/overlays/minikube
+
+  # Destination - onde deployar
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: ml-dev
+
+  # Sync policy - como deployar
+  syncPolicy:
+    # Automated sync - ArgoCD aplica mudanças automaticamente
+    automated:
+      prune: true        # Remove recursos deletados do git
+      selfHeal: true     # Reverte mudanças manuais no cluster
+      allowEmpty: false  # Previne sync de diretórios vazios
+
+    # Sync options
+    syncOptions:
+      - CreateNamespace=true               # Cria namespace se não existir
+      - PrunePropagationPolicy=foreground  # Deleta dependentes primeiro
+      - PruneLast=true                     # Deleta recursos órfãos por último
+      - RespectIgnoreDifferences=true
+
+    # Retry em caso de falha
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+
+  # Ignore differences - evita sync loops
+  ignoreDifferences:
+    # Ignora replicas do HPA (gerenciado pelo HPA controller)
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/replicas
+    - group: apps
+      kind: StatefulSet
+      jsonPointers:
+        - /spec/replicas
+
+    # Ignora status de recursos
+    - group: "*"
+      kind: "*"
+      managedFieldsManagers:
+        - kube-controller-manager
+
+  # Configurações de info
+  info:
+    - name: Environment
+      value: Development (Minikube)
+    #- name: Documentation
+    #  value: TODO
+    - name: Contact
+      value: maikerdralcantara@gmail.com
